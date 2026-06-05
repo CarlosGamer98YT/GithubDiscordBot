@@ -137,6 +137,14 @@ export async function notifyDeploymentOnce() {
       ? `https://${process.env.VERCEL_URL}` 
       : 'Local Dev Server';
 
+    // Auto-register/sync slash commands with Discord on deployment startup
+    const regResult = await registerSlashCommands();
+    if (regResult.success) {
+      console.log('[Deployment Notifier] Slash commands successfully registered.');
+    } else {
+      console.error('[Deployment Notifier] Failed to register slash commands:', regResult.error);
+    }
+
     const embed = {
       title: '🟢 ¡Bot Activo / Bot Active!',
       description: 'El bot se ha cargado correctamente en el servidor.\n\n*The bot has successfully loaded on the server.*',
@@ -181,5 +189,79 @@ export async function notifyDeploymentOnce() {
   } catch (err) {
     console.error('[Deployment Notifier] Failed to send active notification:', err);
     localHasNotified = false;
+  }
+}
+
+/**
+ * Decodes the Discord Application/Client ID from the bot token.
+ */
+function getClientIdFromToken(token: string): string | null {
+  try {
+    const base64Part = token.split('.')[0];
+    const clientId = Buffer.from(base64Part, 'base64').toString('utf-8');
+    if (/^\d+$/.test(clientId)) {
+      return clientId;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Registers slash commands globally with Discord.
+ */
+export async function registerSlashCommands(): Promise<{ success: boolean; error?: string }> {
+  const botToken = process.env.DISCORD_TOKEN;
+  if (!botToken) {
+    return { success: false, error: 'DISCORD_TOKEN is missing' };
+  }
+
+  const clientId = getClientIdFromToken(botToken);
+  if (!clientId) {
+    return { success: false, error: 'Failed to extract Client ID from DISCORD_TOKEN' };
+  }
+
+  const commands = [
+    {
+      name: 'language',
+      description: 'Configure bot notification language / Configura el idioma del bot',
+      options: [
+        {
+          name: 'lang',
+          description: 'Select language / Selecciona el idioma',
+          type: 3, // STRING
+          required: true,
+          choices: [
+            { name: 'English', value: 'en' },
+            { name: 'Español', value: 'es' }
+          ]
+        }
+      ]
+    },
+    {
+      name: 'ping',
+      description: 'Replies with Pong! / Responde con Pong!'
+    }
+  ];
+
+  try {
+    const response = await fetch(`https://discord.com/api/v10/applications/${clientId}/commands`, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(commands),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      return { success: false, error: `Discord response error: ${response.status} ${errText}` };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Unknown network error' };
   }
 }

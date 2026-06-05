@@ -106,6 +106,7 @@ You do not need to run a persistent bot. Discord will call your Vercel deploymen
 3. Add it as `DISCORD_PUBLIC_KEY` to your Vercel Project Environment Variables (and your local `.env`).
 4. Set the **Interactions Endpoint URL** to your deployment URL ending in `/api/interactions` (e.g. `https://my-gitcord.vercel.app/api/interactions`).
 5. Save changes. Discord will verify the endpoint, and you can now use `/language` and `/ping` on your server!
+6. *Optional*: If the slash commands are not recognized by Discord right away, open your GitCord Dashboard in the browser and click the **⚡ Sync Discord Commands** button to manually register/force-update them globally. (They also register automatically on the very first API request after a Vercel deployment).
 
 ### Method B: Gateway Bot (For Local Testing & Development)
 If you are running the bot locally:

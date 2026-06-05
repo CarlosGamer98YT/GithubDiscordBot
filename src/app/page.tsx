@@ -25,6 +25,7 @@ export default function Home() {
   const [testEvent, setTestEvent] = useState<string>('watch');
   const [sendingTest, setSendingTest] = useState<boolean>(false);
   const [syncingUser, setSyncingUser] = useState<boolean>(false);
+  const [syncingCommands, setSyncingCommands] = useState<boolean>(false);
   const [activeModalLog, setActiveModalLog] = useState<WebhookLog | null>(null);
   const [webhookUrl, setWebhookUrl] = useState<string>('https://<your-vercel-domain>.vercel.app/api/webhook/github');
   
@@ -128,6 +129,37 @@ export default function Home() {
       });
     } finally {
       setSyncingUser(false);
+    }
+  };
+
+  // Register Slash Commands manually
+  const handleRegisterCommands = async () => {
+    setSyncingCommands(true);
+    setNotification(null);
+    try {
+      const res = await fetch('/api/register-commands', {
+        method: 'POST',
+      });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        setNotification({
+          type: 'success',
+          message: 'Slash commands (/language, /ping) successfully registered globally!'
+        });
+      } else {
+        setNotification({
+          type: 'error',
+          message: `Failed to register commands: ${data.error || 'Unknown error'}`
+        });
+      }
+    } catch (e: any) {
+      setNotification({
+        type: 'error',
+        message: `Network error: ${e.message || e}`
+      });
+    } finally {
+      setSyncingCommands(false);
     }
   };
 
@@ -355,6 +387,26 @@ export default function Home() {
                   </button>
                 </div>
               )}
+
+              <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.05)', paddingTop: '1rem', marginTop: '0.5rem' }}>
+                <p style={{ fontSize: '0.85rem', color: '#9ca3af', marginBottom: '0.75rem' }}>
+                  Register and sync Discord slash commands (<code>/ping</code>, <code>/language</code>) on your Discord Application.
+                </p>
+                <button 
+                  className={styles.syncButton}
+                  onClick={handleRegisterCommands}
+                  disabled={syncingCommands || !diagnostics?.discordTokenSet}
+                  style={{ width: '100%', backgroundColor: '#4f46e5', borderColor: '#4338ca' }}
+                >
+                  {syncingCommands ? (
+                    <>
+                      <div className={styles.spinner}></div> Syncing commands...
+                    </>
+                  ) : (
+                    <>⚡ Sync Discord Commands</>
+                  )}
+                </button>
+              </div>
 
               {/* Status Banner */}
               {notification && (

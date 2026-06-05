@@ -39,9 +39,9 @@ client.once('ready', async () => {
     }]
   });
 
-  // Register Slash Commands (/language)
+  // Register Slash Commands (/language and /ping)
   try {
-    console.log('🔄 Registering /language command with Discord API...');
+    console.log('🔄 Registering /language and /ping commands with Discord API...');
     const commands = [
       new SlashCommandBuilder()
         .setName('language')
@@ -61,11 +61,27 @@ client.once('ready', async () => {
     ].map(cmd => cmd.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(token);
+    
+    // Register globally (takes up to an hour to propagate)
     await rest.put(
       Routes.applicationCommands(client.user!.id),
       { body: commands }
     );
-    console.log('✅ Slash commands successfully registered globally.');
+    console.log('✅ Global slash commands successfully registered.');
+
+    // Register specifically for all guilds the bot is currently in (instant update!)
+    const guilds = await client.guilds.fetch();
+    for (const [guildId, guild] of guilds) {
+      try {
+        await rest.put(
+          Routes.applicationGuildCommands(client.user!.id, guildId),
+          { body: commands }
+        );
+        console.log(`✅ Guild slash commands registered instantly for guild: ${guild.name || guildId}`);
+      } catch (err: any) {
+        console.warn(`⚠️ Warning: Failed to register guild commands for guild ${guildId}:`, err.message || err);
+      }
+    }
   } catch (err) {
     console.error('❌ Error registering slash commands:', err);
   }

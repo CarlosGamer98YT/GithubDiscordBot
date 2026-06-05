@@ -209,7 +209,7 @@ function getClientIdFromToken(token: string): string | null {
 }
 
 /**
- * Registers slash commands globally with Discord.
+ * Registers slash commands globally and per-guild with Discord.
  */
 export async function registerSlashCommands(): Promise<{ success: boolean; error?: string }> {
   const botToken = process.env.DISCORD_TOKEN;
@@ -246,7 +246,8 @@ export async function registerSlashCommands(): Promise<{ success: boolean; error
   ];
 
   try {
-    const response = await fetch(`https://discord.com/api/v10/applications/${clientId}/commands`, {
+    // 1. Register globally (cache delay up to an hour)
+    const globalResponse = await fetch(`https://discord.com/api/v10/applications/${clientId}/commands`, {
       method: 'PUT',
       headers: {
         'Authorization': `Bot ${botToken}`,
@@ -255,9 +256,49 @@ export async function registerSlashCommands(): Promise<{ success: boolean; error
       body: JSON.stringify(commands),
     });
 
-    if (!response.ok) {
-      const errText = await response.text();
-      return { success: false, error: `Discord response error: ${response.status} ${errText}` };
+    if (!globalResponse.ok) {
+      const errText = await globalResponse.text();
+      console.error(`[Commands API] Global registration failed: ${errText}`);
+    } else {
+      console.log(`[Commands API] Global commands successfully registered.`);
+    }
+
+    // 2. Fetch all guilds the bot has joined
+    const guildsResponse = await fetch('https://discord.com/api/v10/users/@me/guilds', {
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+      },
+    });
+
+    if (guildsResponse.ok) {
+      const guilds = await guildsResponse.json();
+      if (Array.isArray(guilds)) {
+        for (const guild of guilds) {
+          try {
+            const guildId = guild.id;
+            const guildResponse = await fetch(`https://discord.com/api/v10/applications/${clientId}/guilds/${guildId}/commands`, {
+              method: 'PUT',
+              headers: {
+                'Authorization': `Bot ${botToken}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify(commands),
+            });
+
+            if (guildResponse.ok) {
+              console.log(`[Commands API] Guild commands registered instantly for guild: ${guild.name || guildId}`);
+            } else {
+              const errText = await guildResponse.text();
+              console.warn(`[Commands API] Failed to register commands for guild ${guildId}: ${errText}`);
+            }
+          } catch (guildErr: any) {
+            console.error(`[Commands API] Error registering commands for guild:`, guildErr.message || guildErr);
+          }
+        }
+      }
+    } else {
+      const errText = await guildsResponse.text();
+      console.warn(`[Commands API] Failed to fetch bot guilds: ${errText}`);
     }
 
     return { success: true };

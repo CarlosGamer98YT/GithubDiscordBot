@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { formatPolledEvent } from '@/lib/github';
-import { sendToDiscord, addLog } from '@/lib/discord';
+import { sendToDiscord, addLog, EVENT_CHANNEL_MAP } from '@/lib/discord';
 import { logSystem } from '@/lib/console-hook';
+import { resolveGuildIdForChannel, getGuildLanguage } from '@/lib/i18n';
 import fs from 'fs';
 import path from 'path';
 
@@ -86,16 +87,25 @@ export async function POST(request: NextRequest) {
     eventsToProcess.reverse(); // Now index 0 is oldest new event
 
     for (const event of eventsToProcess) {
-      const parsed = formatPolledEvent(event);
-      if (!parsed) continue;
-
-      const { message, description, repoName } = parsed;
-      
       // Determine event type for mapping channels
       let eventType = 'watch'; // Default mapping
       if (event.type === 'ForkEvent') eventType = 'fork';
       if (event.type === 'PullRequestEvent') eventType = 'pull_request';
       if (event.type === 'PushEvent') eventType = 'push';
+
+      // Resolve guild and language for this event channel
+      const envVarName = EVENT_CHANNEL_MAP[eventType] || 'DISCORD_CHANNEL_DEFAULT';
+      const channelId = process.env[envVarName] || process.env.DISCORD_CHANNEL_DEFAULT || '';
+      let lang: 'en' | 'es' = 'en';
+      if (channelId) {
+        const guildId = await resolveGuildIdForChannel(channelId);
+        lang = await getGuildLanguage(guildId);
+      }
+
+      const parsed = formatPolledEvent(event, lang);
+      if (!parsed) continue;
+
+      const { message, description, repoName } = parsed;
 
       const discordResult = await sendToDiscord(eventType, message);
 

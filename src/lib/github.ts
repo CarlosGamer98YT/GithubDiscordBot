@@ -1,9 +1,14 @@
 import { DiscordMessage, DiscordEmbed } from '@/types';
+import { t } from './i18n';
 
 /**
- * Parses a GitHub Webhook event and formats it into a DiscordMessage.
+ * Parses a GitHub Webhook event and formats it into a DiscordMessage in the specified language.
  */
-export function formatWebhookEvent(event: string, payload: any): { message: DiscordMessage; description: string; repoName: string; senderName: string } | null {
+export function formatWebhookEvent(
+  event: string, 
+  payload: any, 
+  lang: 'en' | 'es' = 'en'
+): { message: DiscordMessage; description: string; repoName: string; senderName: string } | null {
   const repository = payload.repository?.full_name || 'unknown-repo';
   const repoUrl = payload.repository?.html_url || '';
   const sender = payload.sender?.login || 'ghost';
@@ -13,11 +18,10 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
   let description = '';
   const embeds: DiscordEmbed[] = [];
 
-  // Base embed structure
   const baseEmbed: DiscordEmbed = {
     timestamp: new Date().toISOString(),
     footer: {
-      text: 'GitHub Discord Bot',
+      text: 'GitCord Bot',
       icon_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
     },
     author: {
@@ -34,12 +38,12 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
       
       embeds.push({
         ...baseEmbed,
-        title: `🌟 Repository Starred!`,
-        description: `[**${sender}**](${senderUrl}) starred [**${repository}**](${repoUrl})`,
-        color: 16772864, // Gold/Yellow (#FFD700)
+        title: t('star_title', lang),
+        description: t('star_desc', lang, { sender, senderUrl, repository, repoUrl }),
+        color: 16772864, // Gold
         fields: [
           { name: 'Repository', value: `[${repository}](${repoUrl})`, inline: true },
-          { name: 'Total Stars', value: payload.repository?.stargazers_count?.toString() || 'N/A', inline: true }
+          { name: t('star_total', lang), value: payload.repository?.stargazers_count?.toString() || 'N/A', inline: true }
         ]
       });
       break;
@@ -52,12 +56,12 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
 
       embeds.push({
         ...baseEmbed,
-        title: `🍴 Repository Forked!`,
-        description: `[**${sender}**](${senderUrl}) forked [**${repository}**](${repoUrl})\ninto [**${forkee}**](${forkeeUrl})`,
-        color: 3447003, // Cyan/Blue (#3498DB)
+        title: t('fork_title', lang),
+        description: t('fork_desc', lang, { sender, senderUrl, repository, repoUrl, forkee, forkeeUrl }),
+        color: 3447003, // Cyan/Blue
         fields: [
-          { name: 'Source Repository', value: `[${repository}](${repoUrl})`, inline: true },
-          { name: 'Forked Repository', value: `[${forkee}](${forkeeUrl})`, inline: true }
+          { name: t('fork_source', lang), value: `[${repository}](${repoUrl})`, inline: true },
+          { name: t('fork_forked', lang), value: `[${forkee}](${forkeeUrl})`, inline: true }
         ]
       });
       break;
@@ -66,18 +70,18 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
     case 'issues': {
       const issue = payload.issue;
       if (!issue) return null;
-      const action = payload.action; // opened, closed, reopened, etc.
+      const action = payload.action; // opened, closed, reopened
       description = `${action} issue #${issue.number} on **${repository}**`;
 
-      let color = 15158332; // Red for opened (#E74C3C)
-      if (action === 'closed') color = 3066993; // Green for closed (#2ECC71)
-      if (action === 'reopened') color = 10181046; // Purple (#9B59B6)
+      let color = 15158332; // Red
+      if (action === 'closed') color = 3066993; // Green
+      if (action === 'reopened') color = 10181046; // Purple
 
       embeds.push({
         ...baseEmbed,
-        title: `🐛 Issue #${issue.number} ${action.toUpperCase()}`,
+        title: t('issue_title', lang, { number: issue.number.toString(), action: action.toUpperCase() }),
         url: issue.html_url,
-        description: `**[${issue.title}](${issue.html_url})**\n\n${issue.body ? (issue.body.length > 200 ? issue.body.substring(0, 200) + '...' : issue.body) : '*No description provided.*'}`,
+        description: `**[${issue.title}](${issue.html_url})**\n\n${issue.body ? (issue.body.length > 200 ? issue.body.substring(0, 200) + '...' : issue.body) : t('issue_no_desc', lang)}`,
         color,
         fields: [
           { name: 'Repository', value: `[${repository}](${repoUrl})`, inline: true },
@@ -90,19 +94,19 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
     case 'pull_request': {
       const pr = payload.pull_request;
       if (!pr) return null;
-      const action = payload.action; // opened, closed, reopened
+      const action = payload.action;
       const isMerged = action === 'closed' && pr.merged === true;
       
       let titleAction = action.toUpperCase();
-      let color = 10181046; // Purple for opened/reopened (#9B59B6)
+      let color = 10181046; // Purple
 
       if (isMerged) {
         titleAction = 'MERGED';
-        color = 3066993; // Green for merged (#2ECC71)
+        color = 3066993; // Green
         description = `merged PR #${pr.number} in **${repository}**`;
       } else if (action === 'closed') {
-        titleAction = 'CLOSED (UNMERGED)';
-        color = 9807270; // Dark grey (#95A5A6)
+        titleAction = 'CLOSED';
+        color = 9807270; // Grey
         description = `closed PR #${pr.number} (unmerged) in **${repository}**`;
       } else {
         description = `${action} PR #${pr.number} in **${repository}**`;
@@ -110,14 +114,14 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
 
       embeds.push({
         ...baseEmbed,
-        title: `🔀 Pull Request #${pr.number} ${titleAction}`,
+        title: t('pr_title', lang, { number: pr.number.toString(), action: titleAction }),
         url: pr.html_url,
-        description: `**[${pr.title}](${pr.html_url})**\n\n${pr.body ? (pr.body.length > 200 ? pr.body.substring(0, 200) + '...' : pr.body) : '*No description provided.*'}`,
+        description: `**[${pr.title}](${pr.html_url})**\n\n${pr.body ? (pr.body.length > 200 ? pr.body.substring(0, 200) + '...' : pr.body) : t('pr_no_desc', lang)}`,
         color,
         fields: [
           { name: 'Repository', value: `[${repository}](${repoUrl})`, inline: true },
-          { name: 'Creator', value: `[${pr.user?.login || sender}](${pr.user?.html_url || senderUrl})`, inline: true },
-          { name: 'Branches', value: `\`${pr.head?.ref}\` ➔ \`${pr.base?.ref}\``, inline: false }
+          { name: t('pr_creator', lang), value: `[${pr.user?.login || sender}](${pr.user?.html_url || senderUrl})`, inline: true },
+          { name: t('pr_branches', lang), value: `\`${pr.head?.ref}\` ➔ \`${pr.base?.ref}\``, inline: false }
         ]
       });
       break;
@@ -126,35 +130,34 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
     case 'workflow_run': {
       const run = payload.workflow_run;
       if (!run) return null;
-      if (payload.action !== 'completed') return null; // Only notify on completion
+      if (payload.action !== 'completed') return null;
 
-      const conclusion = run.conclusion; // success, failure, cancelled, timed_out
+      const conclusion = run.conclusion; // success, failure
       description = `workflow "${run.name}" run finished with **${conclusion}** on **${repository}**`;
 
-      let color = 3066993; // Green for success
+      let color = 3066993; // Green
       let icon = '✅';
       if (conclusion !== 'success') {
-        color = 15158332; // Red for failure/other
+        color = 15158332; // Red
         icon = '❌';
       }
 
       embeds.push({
         ...baseEmbed,
-        title: `${icon} Workflow Run ${conclusion.toUpperCase()}`,
+        title: t('workflow_title', lang, { icon, conclusion: conclusion.toUpperCase() }),
         url: run.html_url,
-        description: `Workflow **${run.name}** (run #${run.run_number}) completed with status **${conclusion}**`,
+        description: t('workflow_desc', lang, { name: run.name, number: run.run_number.toString(), conclusion: conclusion.toUpperCase() }),
         color,
         fields: [
           { name: 'Repository', value: `[${repository}](${repoUrl})`, inline: true },
-          { name: 'Trigger Event', value: `\`${run.event}\``, inline: true },
-          { name: 'Commit Message', value: run.head_commit?.message || 'No commit message', inline: false }
+          { name: t('workflow_trigger', lang), value: `\`${run.event}\``, inline: true },
+          { name: t('workflow_commit', lang), value: run.head_commit?.message || 'No commit message', inline: false }
         ]
       });
       break;
     }
 
     case 'push': {
-      // Parse standard push events as well as merges
       const commits = payload.commits || [];
       const branch = payload.ref?.replace('refs/heads/', '') || 'main';
       const headCommit = payload.head_commit;
@@ -170,14 +173,16 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
 
       embeds.push({
         ...baseEmbed,
-        title: isMerge ? `🔀 Merge Commited to ${branch}` : `🚀 Commits Pushed to ${branch}`,
+        title: isMerge 
+          ? t('push_title_merge', lang, { branch }) 
+          : t('push_title_push', lang, { branch }),
         url: headCommit.url,
         description: `**[${headCommit.message.split('\n')[0]}](${headCommit.url})**`,
-        color: isMerge ? 3066993 : 3447003, // Green for merge, Blue for push
+        color: isMerge ? 3066993 : 3447003,
         fields: [
           { name: 'Repository', value: `[${repository}](${repoUrl})`, inline: true },
-          { name: 'Commits Count', value: commits.length.toString(), inline: true },
-          { name: 'Author', value: headCommit.author?.name || headCommit.author?.username || sender, inline: true }
+          { name: t('push_commits', lang), value: commits.length.toString(), inline: true },
+          { name: t('push_author', lang), value: headCommit.author?.name || headCommit.author?.username || sender, inline: true }
         ]
       });
       break;
@@ -196,10 +201,9 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
 }
 
 /**
- * Parses a polled event from the GitHub events API and maps it to a DiscordMessage.
- * This handles events done BY the user.
+ * Parses a polled event from the GitHub events API and maps it to a DiscordMessage in the specified language.
  */
-export function formatPolledEvent(event: any): { message: DiscordMessage; description: string; repoName: string } | null {
+export function formatPolledEvent(event: any, lang: 'en' | 'es' = 'en'): { message: DiscordMessage; description: string; repoName: string } | null {
   const type = event.type;
   const actor = event.actor?.login || 'User';
   const actorUrl = `https://github.com/${actor}`;
@@ -213,7 +217,7 @@ export function formatPolledEvent(event: any): { message: DiscordMessage; descri
   const baseEmbed: DiscordEmbed = {
     timestamp: new Date().toISOString(),
     footer: {
-      text: 'GitHub Discord Poller',
+      text: 'GitCord Poller',
       icon_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
     },
     author: {
@@ -228,8 +232,8 @@ export function formatPolledEvent(event: any): { message: DiscordMessage; descri
       description = `starred **${repoName}**`;
       embeds.push({
         ...baseEmbed,
-        title: `🌟 Starred a Repository!`,
-        description: `You ([**${actor}**](${actorUrl})) starred [**${repoName}**](${repoUrl})`,
+        title: t('poller_star_title', lang),
+        description: t('poller_star_desc', lang, { actor, actorUrl, repoName, repoUrl }),
         color: 16772864, // Gold
         fields: [
           { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true }
@@ -245,8 +249,8 @@ export function formatPolledEvent(event: any): { message: DiscordMessage; descri
       
       embeds.push({
         ...baseEmbed,
-        title: `🍴 Forked a Repository!`,
-        description: `You ([**${actor}**](${actorUrl})) forked [**${repoName}**](${repoUrl})\ninto [**${forkeeName}**](${forkeeUrl})`,
+        title: t('poller_fork_title', lang),
+        description: t('poller_fork_desc', lang, { actor, actorUrl, repoName, repoUrl, forkeeName, forkeeUrl }),
         color: 3447003, // Blue
         fields: [
           { name: 'Source Repository', value: `[${repoName}](${repoUrl})`, inline: true },
@@ -275,9 +279,9 @@ export function formatPolledEvent(event: any): { message: DiscordMessage; descri
 
       embeds.push({
         ...baseEmbed,
-        title: `🔀 Pull Request #${pr.number} ${titleAction}`,
+        title: t('pr_title', lang, { number: pr.number.toString(), action: titleAction }),
         url: pr.html_url,
-        description: `You ([**${actor}**](${actorUrl})) ${action} PR [**#${pr.number} ${pr.title}**](${pr.html_url})`,
+        description: t('poller_pr_desc', lang, { actor, actorUrl, number: pr.number.toString(), title: pr.title, prUrl: pr.html_url, action }),
         color,
         fields: [
           { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true }
@@ -294,9 +298,9 @@ export function formatPolledEvent(event: any): { message: DiscordMessage; descri
       
       embeds.push({
         ...baseEmbed,
-        title: `🚀 Pushed Commits to ${branch}!`,
+        title: t('poller_push_title', lang, { branch }),
         url: repoUrl,
-        description: `You ([**${actor}**](${actorUrl})) pushed ${commits.length} commit(s) to [**${repoName}**](${repoUrl})`,
+        description: t('poller_push_desc', lang, { actor, actorUrl, count: commits.length.toString(), repoName, repoUrl }),
         color: 3447003, // Blue
         fields: [
           { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true },
@@ -307,7 +311,6 @@ export function formatPolledEvent(event: any): { message: DiscordMessage; descri
     }
 
     default:
-      // Return null for unhandled events
       return null;
   }
 

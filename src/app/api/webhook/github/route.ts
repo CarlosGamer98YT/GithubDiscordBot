@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { formatWebhookEvent } from '@/lib/github';
-import { sendToDiscord, addLog } from '@/lib/discord';
+import { sendToDiscord, addLog, EVENT_CHANNEL_MAP } from '@/lib/discord';
 import { logSystem } from '@/lib/console-hook';
+import { resolveGuildIdForChannel, getGuildLanguage } from '@/lib/i18n';
 
 export async function POST(request: NextRequest) {
   const event = request.headers.get('x-github-event') || '';
@@ -9,7 +10,7 @@ export async function POST(request: NextRequest) {
   if (event === 'ping') {
     // Send "Pong!" to the default channel
     const discordResult = await sendToDiscord('ping', {
-      content: '🏓 **¡Pong!** Conexión de webhook de GitHub establecida con éxito.'
+      content: '🏓 **Pong!** GitHub webhook connection established successfully.'
     });
 
     addLog({
@@ -29,8 +30,17 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    // Parse the event
-    const parsed = formatWebhookEvent(event, body);
+    // Resolve channel, guild, and language settings for the event
+    const envVarName = EVENT_CHANNEL_MAP[event] || 'DISCORD_CHANNEL_DEFAULT';
+    const channelId = process.env[envVarName] || process.env.DISCORD_CHANNEL_DEFAULT || '';
+    let lang: 'en' | 'es' = 'en';
+    if (channelId) {
+      const guildId = await resolveGuildIdForChannel(channelId);
+      lang = await getGuildLanguage(guildId);
+    }
+
+    // Parse the event using target language
+    const parsed = formatWebhookEvent(event, body, lang);
     
     if (!parsed) {
       // Log skipped/unhandled events

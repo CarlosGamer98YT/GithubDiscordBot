@@ -22,21 +22,26 @@ Duplicate `.env.template` to create a `.env` file in the root directory:
 
 ```env
 # Discord Configuration
-DISCORD_TOKEN=your_discord_bot_token
+DISCORD_TOKEN=
+DISCORD_PUBLIC_KEY=
 
-# Discord Channel Mappings (Paste channel IDs)
-DISCORD_CHANNEL_DEFAULT=your_fallback_general_channel_id
-DISCORD_CHANNEL_STARS=channel_id_for_stars
-DISCORD_CHANNEL_FORKS=channel_id_for_forks
-DISCORD_CHANNEL_ISSUES=channel_id_for_issues
-DISCORD_CHANNEL_PRS=channel_id_for_prs_and_merges
-DISCORD_CHANNEL_ACTIONS=channel_id_for_actions_runs
-DISCORD_CHANNEL_PUSH=channel_id_for_push_commits
-DISCORD_CHANNEL_LOGS=channel_id_for_console_log_mirroring
+# Discord Channel Mappings (Replace with your actual Channel IDs)
+DISCORD_CHANNEL_DEFAULT=
+DISCORD_CHANNEL_STARS=
+DISCORD_CHANNEL_FORKS=
+DISCORD_CHANNEL_ISSUES=
+DISCORD_CHANNEL_PRS=
+DISCORD_CHANNEL_ACTIONS=
+DISCORD_CHANNEL_PUSH=
+DISCORD_CHANNEL_LOGS=
+DISCORD_CHANNEL_REPO_CREATE=
+DISCORD_CHANNEL_REPO_DELETE=
 
-# GitHub Configuration (Optional: to sync your own external activities)
-GITHUB_USERNAME=your_github_username
-GITHUB_PAT=your_github_personal_access_token
+# GitHub Configuration (Optional: for polling your own activity on other repos)
+# If provided, the poller can check your public events.
+GITHUB_USERNAME=
+# A GitHub Personal Access Token is recommended to avoid rate limits
+GITHUB_PAT=
 ```
 
 ---

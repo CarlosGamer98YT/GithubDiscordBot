@@ -2,8 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyKey } from 'discord-interactions';
 import { setGuildLanguage } from '@/lib/i18n';
 import { logSystem } from '@/lib/console-hook';
+import { notifyDeploymentOnce } from '@/lib/discord';
 
 export async function POST(request: NextRequest) {
+  // Trigger deployment notification once
+  await notifyDeploymentOnce();
+
   const publicKey = process.env.DISCORD_PUBLIC_KEY;
   if (!publicKey) {
     console.error('❌ DISCORD_PUBLIC_KEY is not configured in environment.');
@@ -53,6 +57,16 @@ export async function POST(request: NextRequest) {
           data: {
             content: replyContent,
             flags: 64 // EPHEMERAL (Only visible to the user who ran the command)
+          }
+        });
+      }
+
+      if (name === 'ping') {
+        await logSystem('log', '[Discord Interactions] Command /ping received.');
+        return NextResponse.json({
+          type: 4, // CHANNEL_MESSAGE_WITH_SOURCE
+          data: {
+            content: '🏓 **Pong!**'
           }
         });
       }

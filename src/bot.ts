@@ -54,7 +54,10 @@ client.once('ready', async () => {
               { name: 'English', value: 'en' },
               { name: 'Español', value: 'es' }
             )
-        )
+        ),
+      new SlashCommandBuilder()
+        .setName('ping')
+        .setDescription('Replies with Pong! / Responde con Pong!')
     ].map(cmd => cmd.toJSON());
 
     const rest = new REST({ version: '10' }).setToken(token);
@@ -62,7 +65,7 @@ client.once('ready', async () => {
       Routes.applicationCommands(client.user!.id),
       { body: commands }
     );
-    console.log('✅ /language command successfully registered globally.');
+    console.log('✅ Slash commands successfully registered globally.');
   } catch (err) {
     console.error('❌ Error registering slash commands:', err);
   }
@@ -121,6 +124,11 @@ client.on('interactionCreate', async (interaction) => {
         ephemeral: true 
       });
     }
+  }
+
+  if (commandName === 'ping') {
+    await interaction.reply({ content: '🏓 **Pong!**' });
+    console.log('🏓 Ping-pong command executed.');
   }
 });
 

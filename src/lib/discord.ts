@@ -89,3 +89,97 @@ export async function sendToDiscord(eventType: string, discordMessage: DiscordMe
     return { success: false, channelId, error: error.message || 'Unknown network error' };
   }
 }
+
+let localHasNotified = false;
+
+/**
+ * Checks the Discord channel history to see if an "Activo!" message has already
+ * been sent for the current deployment. If not, sends one exactly once.
+ */
+export async function notifyDeploymentOnce() {
+  if (localHasNotified) return;
+
+  const botToken = process.env.DISCORD_TOKEN;
+  const channelId = process.env.DISCORD_CHANNEL_DEFAULT;
+  
+  if (!botToken || !channelId) {
+    return;
+  }
+
+  const commitSha = process.env.VERCEL_GIT_COMMIT_SHA || process.env.VERCEL_URL || 'local-dev';
+  
+  try {
+    localHasNotified = true;
+
+    // Fetch the last 10 messages from the default channel
+    const historyRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages?limit=10`, {
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+      },
+    });
+
+    if (historyRes.ok) {
+      const messages = await historyRes.json();
+      const alreadySent = Array.isArray(messages) && messages.some((msg: any) => 
+        msg.content && msg.content.includes('🚀') && msg.content.includes(commitSha)
+      );
+
+      if (alreadySent) {
+        return;
+      }
+    }
+  } catch (err) {
+    console.error('[Deployment Notifier] Failed to verify message history:', err);
+  }
+
+  try {
+    const deploymentUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : 'Local Dev Server';
+
+    const embed = {
+      title: '🟢 ¡Bot Activo / Bot Active!',
+      description: 'El bot se ha cargado correctamente en el servidor.\n\n*The bot has successfully loaded on the server.*',
+      color: 0x2ecc71,
+      fields: [
+        {
+          name: 'Environment / Entorno',
+          value: process.env.VERCEL ? 'Vercel Serverless' : 'Local Host',
+          inline: true
+        },
+        {
+          name: 'Deployment / Despliegue',
+          value: process.env.VERCEL_URL ? `[Link](${deploymentUrl})` : '`localhost`',
+          inline: true
+        },
+        {
+          name: 'Commit SHA',
+          value: `\`${process.env.VERCEL_GIT_COMMIT_SHA ? process.env.VERCEL_GIT_COMMIT_SHA.substring(0, 7) : 'N/A'}\``,
+          inline: true
+        }
+      ],
+      timestamp: new Date().toISOString()
+    };
+
+    const response = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: `🚀 **¡Activo!** [Deploy ID: \`${commitSha.substring(0, 7)}\`]`,
+        embeds: [embed]
+      }),
+    });
+
+    if (response.ok) {
+      console.log(`[Deployment Notifier] Sent deployment active notification for ${commitSha}`);
+    } else {
+      localHasNotified = false;
+    }
+  } catch (err) {
+    console.error('[Deployment Notifier] Failed to send active notification:', err);
+    localHasNotified = false;
+  }
+}

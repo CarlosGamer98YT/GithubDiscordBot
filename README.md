@@ -11,7 +11,7 @@ It features a sleek developer dashboard to monitor system configurations, test r
 - **🚀 Serverless First**: Built for Vercel. Webhook dispatch is fast, lightweight, and uses Discord's REST API, preventing cold starts and persistent socket overhead.
 - **🟢 Active presence (Optional)**: Includes a standalone Discord Gateway script to connect your bot, set its status to **Online (green dot)**, and report status notifications.
 - **🔌 Automatic Console Mirroring**: Redirects all server console warnings, errors, and info logs to a dedicated Discord channel for real-time diagnostics.
-- **🌐 Multilingual Support (i18n)**: Supports notifications in **English** and **Spanish**. Use the `/language` command in Discord to toggle notifications for each server dynamically!
+- **🌐 Multilingual Support (i18n)**: Supports notifications in **English** and **Spanish**. Use the `/language` command in Discord to toggle notifications for each server dynamically! Also features a `/ping` command responding with `🏓 **Pong!**`.
 - **🧪 Testing Simulator**: Select any event type (Star, Fork, Issue, PR, Action, Push) and send a mock payload with one click to test channel deliveries.
 
 ---
@@ -105,7 +105,7 @@ You do not need to run a persistent bot. Discord will call your Vercel deploymen
 2. Under **General Information**, copy your **Public Key**.
 3. Add it as `DISCORD_PUBLIC_KEY` to your Vercel Project Environment Variables (and your local `.env`).
 4. Set the **Interactions Endpoint URL** to your deployment URL ending in `/api/interactions` (e.g. `https://my-gitcord.vercel.app/api/interactions`).
-5. Save changes. Discord will verify the endpoint, and you can now use `/language` on your server!
+5. Save changes. Discord will verify the endpoint, and you can now use `/language` and `/ping` on your server!
 
 ### Method B: Gateway Bot (For Local Testing & Development)
 If you are running the bot locally:

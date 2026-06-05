@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { formatWebhookEvent } from '@/lib/github';
-import { sendToDiscord, addLog, EVENT_CHANNEL_MAP } from '@/lib/discord';
+import { sendToDiscord, addLog, EVENT_CHANNEL_MAP, notifyDeploymentOnce } from '@/lib/discord';
 import { logSystem } from '@/lib/console-hook';
 import { resolveGuildIdForChannel, getGuildLanguage } from '@/lib/i18n';
 
 export async function POST(request: NextRequest) {
+  // Trigger deployment notification once
+  await notifyDeploymentOnce();
   const event = request.headers.get('x-github-event') || '';
   
   if (event === 'ping') {

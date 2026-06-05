@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getLogs, EVENT_CHANNEL_MAP } from '@/lib/discord';
+import { getLogs, EVENT_CHANNEL_MAP, notifyDeploymentOnce } from '@/lib/discord';
 
 export async function GET(request: NextRequest) {
+  // Trigger deployment notification once
+  await notifyDeploymentOnce();
   // Prevent Next.js from caching this API response
   const headers = new Headers();
   headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

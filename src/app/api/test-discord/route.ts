@@ -92,6 +92,24 @@ export async function POST(request: NextRequest) {
           { name: 'Head Commit Message', value: 'feat: add support for push events', inline: false }
         ];
         break;
+      case 'repository_create':
+        title = '🆕 Repository Created! (TEST)';
+        description = `[**${mockSender}**](https://github.com/${mockSender}) created repository [**${mockRepo}**](https://github.com/${mockSender}/${mockRepo})`;
+        color = 3066993; // Green
+        fields = [
+          { name: 'Repository', value: `[${mockRepo}](https://github.com/${mockSender}/${mockRepo})`, inline: true },
+          { name: 'Owner', value: mockSender, inline: true }
+        ];
+        break;
+      case 'repository_delete':
+        title = '🗑️ Repository Deleted! (TEST)';
+        description = `[**${mockSender}**](https://github.com/${mockSender}) deleted repository **${mockRepo}**`;
+        color = 15158332; // Red
+        fields = [
+          { name: 'Repository', value: mockRepo, inline: true },
+          { name: 'Owner', value: mockSender, inline: true }
+        ];
+        break;
       default:
         return NextResponse.json({ error: 'Unsupported test event type' }, { status: 400 });
     }

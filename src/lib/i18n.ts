@@ -40,7 +40,12 @@ export const translations = {
     poller_pr_desc: 'You ([**{actor}**]({actorUrl})) {action} PR [**#{number} {title}**]({prUrl})',
     
     poller_push_title: '🚀 Pushed Commits to {branch}!',
-    poller_push_desc: 'You ([**{actor}**]({actorUrl})) pushed {count} commit(s) to [**{repoName}**]({repoUrl})'
+    poller_push_desc: 'You ([**{actor}**]({actorUrl})) pushed {count} commit(s) to [**{repoName}**]({repoUrl})',
+
+    repo_created_title: '🆕 Repository Created!',
+    repo_created_desc: '[**{sender}**]({senderUrl}) created repository [**{repository}**]({repoUrl})',
+    repo_deleted_title: '🗑️ Repository Deleted!',
+    repo_deleted_desc: '[**{sender}**]({senderUrl}) deleted repository **{repository}**'
   },
   es: {
     star_title: '🌟 ¡Repositorio con Estrella!',
@@ -79,7 +84,12 @@ export const translations = {
     poller_pr_desc: 'Tú ([**{actor}**]({actorUrl})) {action} PR [**#{number} {title}**]({prUrl})',
     
     poller_push_title: '🚀 ¡Hiciste Push de Commits a {branch}!',
-    poller_push_desc: 'Tú ([**{actor}**]({actorUrl})) enviaste {count} commit(s) a [**{repoName}**]({repoUrl})'
+    poller_push_desc: 'Tú ([**{actor}**]({actorUrl})) enviaste {count} commit(s) a [**{repoName}**]({repoUrl})',
+
+    repo_created_title: '🆕 ¡Repositorio Creado!',
+    repo_created_desc: '[**{sender}**]({senderUrl}) creó el repositorio [**{repository}**]({repoUrl})',
+    repo_deleted_title: '🗑️ ¡Repositorio Eliminado!',
+    repo_deleted_desc: '[**{sender}**]({senderUrl}) eliminó el repositorio **{repository}**'
   }
 };
 

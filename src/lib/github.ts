@@ -188,6 +188,31 @@ export function formatWebhookEvent(
       break;
     }
 
+    case 'repository': {
+      const action = payload.action;
+      if (action !== 'created' && action !== 'deleted') return null;
+
+      const isCreated = action === 'created';
+      description = isCreated 
+        ? `created repository **${repository}**` 
+        : `deleted repository **${repository}**`;
+
+      embeds.push({
+        ...baseEmbed,
+        title: isCreated ? t('repo_created_title', lang) : t('repo_deleted_title', lang),
+        url: isCreated ? repoUrl : undefined,
+        description: isCreated
+          ? t('repo_created_desc', lang, { sender, senderUrl, repository, repoUrl })
+          : t('repo_deleted_desc', lang, { sender, senderUrl, repository }),
+        color: isCreated ? 3066993 : 15158332, // Green for creation, Red for deletion
+        fields: [
+          { name: 'Repository', value: isCreated ? `[${repository}](${repoUrl})` : repository, inline: true },
+          { name: 'Owner', value: payload.repository?.owner?.login || sender, inline: true }
+        ]
+      });
+      break;
+    }
+
     default:
       return null;
   }

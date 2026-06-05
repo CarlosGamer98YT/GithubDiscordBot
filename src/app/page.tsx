@@ -180,6 +180,9 @@ export default function Home() {
       case 'pull_request': return 'Pull Requests';
       case 'workflow_run': return 'GitHub Actions';
       case 'push': return 'Push (Merges)';
+      case 'repository': return 'Repository Events';
+      case 'repository_create': return 'Repo Created';
+      case 'repository_delete': return 'Repo Deleted';
       default: return event;
     }
   };
@@ -349,6 +352,8 @@ export default function Home() {
                   <option value="pull_request">🔀 Pull Request Event (Merged)</option>
                   <option value="workflow_run">✅ Action Run Event (Completed)</option>
                   <option value="push">🚀 Push Event</option>
+                  <option value="repository_create">🆕 Repository Created Event</option>
+                  <option value="repository_delete">🗑️ Repository Deleted Event</option>
                 </select>
 
                 <button 

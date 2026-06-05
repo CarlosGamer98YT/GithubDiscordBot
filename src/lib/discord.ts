@@ -1,4 +1,10 @@
 import { DiscordMessage, WebhookLog } from '@/types';
+import { initConsoleHook } from './console-hook';
+
+// Initialize console hook on load if in server environment and log channel is set
+if (typeof window === 'undefined' && process.env.DISCORD_CHANNEL_LOGS) {
+  initConsoleHook();
+}
 
 // In-memory log buffer (persisted as long as Vercel container is warm)
 // Used to showcase live logs in the session dashboard.
@@ -32,6 +38,7 @@ export const EVENT_CHANNEL_MAP: Record<string, string> = {
   pull_request: 'DISCORD_CHANNEL_PRS',
   workflow_run: 'DISCORD_CHANNEL_ACTIONS',
   push: 'DISCORD_CHANNEL_PUSH', // Dedicated channel for pushes
+  logs: 'DISCORD_CHANNEL_LOGS',  // Mirror console logs to Discord
 };
 
 export interface SendResult {

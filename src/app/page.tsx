@@ -308,6 +308,7 @@ export default function Home() {
                   <option value="issues">🐛 Issue Event (Opened)</option>
                   <option value="pull_request">🔀 Pull Request Event (Merged)</option>
                   <option value="workflow_run">✅ Action Run Event (Completed)</option>
+                  <option value="push">🚀 Push Event</option>
                 </select>
 
                 <button 

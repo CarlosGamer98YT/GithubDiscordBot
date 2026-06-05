@@ -154,19 +154,16 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
     }
 
     case 'push': {
-      // Sometimes push events represent merges. We parse them if they contain merge commits
+      // Parse standard push events as well as merges
       const commits = payload.commits || [];
       const branch = payload.ref?.replace('refs/heads/', '') || 'main';
       const headCommit = payload.head_commit;
       
       if (!headCommit) return null;
 
-      // Filter out standard non-merge pushes if we want to focus on merges, 
-      // or we can allow all pushes. Let's make it alert for merges/pushes.
       const isMerge = headCommit.message?.toLowerCase().includes('merge pull request') || 
                       headCommit.message?.toLowerCase().includes('merge branch');
       
-      title: isMerge ? '🔀 Merge Commited' : '🚀 Commits Pushed';
       description = isMerge 
         ? `merged commits into **${branch}** of **${repository}**`
         : `pushed ${commits.length} commit(s) to **${branch}** of **${repository}**`;
@@ -180,7 +177,7 @@ export function formatWebhookEvent(event: string, payload: any): { message: Disc
         fields: [
           { name: 'Repository', value: `[${repository}](${repoUrl})`, inline: true },
           { name: 'Commits Count', value: commits.length.toString(), inline: true },
-          { name: 'Author', value: headCommit.author?.username || sender, inline: true }
+          { name: 'Author', value: headCommit.author?.name || headCommit.author?.username || sender, inline: true }
         ]
       });
       break;
@@ -284,6 +281,26 @@ export function formatPolledEvent(event: any): { message: DiscordMessage; descri
         color,
         fields: [
           { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true }
+        ]
+      });
+      break;
+    }
+
+    case 'PushEvent': {
+      const commits = event.payload?.commits || [];
+      const branch = event.payload?.ref?.replace('refs/heads/', '') || 'main';
+      const headCommit = commits[0];
+      description = `pushed to **${branch}** on **${repoName}**`;
+      
+      embeds.push({
+        ...baseEmbed,
+        title: `🚀 Pushed Commits to ${branch}!`,
+        url: repoUrl,
+        description: `You ([**${actor}**](${actorUrl})) pushed ${commits.length} commit(s) to [**${repoName}**](${repoUrl})`,
+        color: 3447003, // Blue
+        fields: [
+          { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true },
+          { name: 'Head Commit Message', value: headCommit?.message || 'No commit message', inline: false }
         ]
       });
       break;

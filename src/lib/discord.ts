@@ -31,7 +31,7 @@ export const EVENT_CHANNEL_MAP: Record<string, string> = {
   issues: 'DISCORD_CHANNEL_ISSUES',
   pull_request: 'DISCORD_CHANNEL_PRS',
   workflow_run: 'DISCORD_CHANNEL_ACTIONS',
-  push: 'DISCORD_CHANNEL_PRS', // Merges are pushes
+  push: 'DISCORD_CHANNEL_PUSH', // Dedicated channel for pushes
 };
 
 export interface SendResult {

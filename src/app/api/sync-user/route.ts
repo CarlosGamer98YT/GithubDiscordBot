@@ -94,6 +94,7 @@ export async function POST(request: NextRequest) {
       let eventType = 'watch'; // Default mapping
       if (event.type === 'ForkEvent') eventType = 'fork';
       if (event.type === 'PullRequestEvent') eventType = 'pull_request';
+      if (event.type === 'PushEvent') eventType = 'push';
 
       const discordResult = await sendToDiscord(eventType, message);
 

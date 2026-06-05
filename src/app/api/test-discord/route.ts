@@ -81,6 +81,16 @@ export async function POST(request: NextRequest) {
           { name: 'Commit Message', value: 'feat: add discord notifications', inline: false }
         ];
         break;
+      case 'push':
+        title = '🚀 Commits Pushed (TEST)';
+        description = `[**${mockSender}**](https://github.com/${mockSender}) pushed 3 commit(s) to branch \`main\``;
+        color = 3447003; // Blue
+        fields = [
+          { name: 'Repository', value: `[${mockRepo}](https://github.com/${mockSender}/${mockRepo})`, inline: true },
+          { name: 'Commits Count', value: '3', inline: true },
+          { name: 'Head Commit Message', value: 'feat: add support for push events', inline: false }
+        ];
+        break;
       default:
         return NextResponse.json({ error: 'Unsupported test event type' }, { status: 400 });
     }

@@ -39,6 +39,8 @@ export const EVENT_CHANNEL_MAP: Record<string, string> = {
   workflow_run: 'DISCORD_CHANNEL_ACTIONS',
   push: 'DISCORD_CHANNEL_PUSH', // Dedicated channel for pushes
   logs: 'DISCORD_CHANNEL_LOGS',  // Mirror console logs to Discord
+  repository_create: 'DISCORD_CHANNEL_REPO_CREATE',
+  repository_delete: 'DISCORD_CHANNEL_REPO_DELETE',
 };
 
 export interface SendResult {

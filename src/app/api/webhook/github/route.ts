@@ -32,8 +32,16 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
+    // Resolve dynamic mapped event for repository created/deleted actions
+    let mappedEvent = event;
+    if (event === 'repository') {
+      const action = body.action;
+      if (action === 'created') mappedEvent = 'repository_create';
+      if (action === 'deleted') mappedEvent = 'repository_delete';
+    }
+
     // Resolve channel, guild, and language settings for the event
-    const envVarName = EVENT_CHANNEL_MAP[event] || 'DISCORD_CHANNEL_DEFAULT';
+    const envVarName = EVENT_CHANNEL_MAP[mappedEvent] || 'DISCORD_CHANNEL_DEFAULT';
     const channelId = process.env[envVarName] || process.env.DISCORD_CHANNEL_DEFAULT || '';
     let lang: 'en' | 'es' = 'en';
     if (channelId) {
@@ -50,42 +58,42 @@ export async function POST(request: NextRequest) {
       const sender = body.sender?.login || 'unknown-sender';
       
       addLog({
-        eventType: event || 'unknown',
+        eventType: mappedEvent || 'unknown',
         repository: repo,
         sender,
-        description: `Skipped unhandled event: "${event}"`,
+        description: `Skipped unhandled event: "${mappedEvent}"`,
         status: 'success',
         details: 'This event type is not configured or ignored.'
       });
-      return NextResponse.json({ message: `Event '${event}' skipped (unhandled)` }, { status: 200 });
+      return NextResponse.json({ message: `Event '${mappedEvent}' skipped (unhandled)` }, { status: 200 });
     }
 
     const { message, description, repoName, senderName } = parsed;
 
     // Send to Discord
-    const discordResult = await sendToDiscord(event, message);
+    const discordResult = await sendToDiscord(mappedEvent, message);
 
     if (discordResult.success) {
       addLog({
-        eventType: event,
+        eventType: mappedEvent,
         repository: repoName,
         sender: senderName,
         description,
         status: 'success',
         details: `Successfully forwarded to Discord channel ID: ${discordResult.channelId}`
       });
-      await logSystem('log', `[Webhook] Successfully forwarded "${event}" event for ${repoName} to Discord`);
+      await logSystem('log', `[Webhook] Successfully forwarded "${mappedEvent}" event for ${repoName} to Discord`);
       return NextResponse.json({ success: true, message: 'Notification sent' }, { status: 200 });
     } else {
       addLog({
-        eventType: event,
+        eventType: mappedEvent,
         repository: repoName,
         sender: senderName,
         description,
         status: 'error',
         details: `Failed to send to Discord (Channel ID: ${discordResult.channelId || 'none'}). Error: ${discordResult.error}`
       });
-      await logSystem('error', `[Webhook] Failed to forward "${event}" event for ${repoName}. Error: ${discordResult.error}`);
+      await logSystem('error', `[Webhook] Failed to forward "${mappedEvent}" event for ${repoName}. Error: ${discordResult.error}`);
       return NextResponse.json({ success: false, error: discordResult.error }, { status: 500 });
     }
   } catch (error: any) {

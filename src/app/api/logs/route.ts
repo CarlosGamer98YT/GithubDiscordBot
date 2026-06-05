@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
 
   const diagnostics = {
     discordTokenSet: !!process.env.DISCORD_TOKEN,
+    discordPublicKeySet: !!process.env.DISCORD_PUBLIC_KEY,
     githubUsername: process.env.GITHUB_USERNAME || null,
     githubPatSet: !!process.env.GITHUB_PAT,
     channels

@@ -6,6 +6,7 @@ import { WebhookLog, ChannelConfig } from '@/types';
 
 interface Diagnostics {
   discordTokenSet: boolean;
+  discordPublicKeySet: boolean;
   githubUsername: string | null;
   githubPatSet: boolean;
   channels: Array<{
@@ -192,6 +193,13 @@ export default function Home() {
                   <span className={styles.diagLabel}>Discord Bot Token</span>
                   <span className={`${styles.badge} ${diagnostics.discordTokenSet ? styles.badgeSuccess : styles.badgeError}`}>
                     {diagnostics.discordTokenSet ? 'Set' : 'Missing'}
+                  </span>
+                </div>
+
+                <div className={styles.diagItem}>
+                  <span className={styles.diagLabel}>Discord Public Key</span>
+                  <span className={`${styles.badge} ${diagnostics.discordPublicKeySet ? styles.badgeSuccess : styles.badgeError}`}>
+                    {diagnostics.discordPublicKeySet ? 'Set' : 'Missing'}
                   </span>
                 </div>
                 

@@ -95,11 +95,21 @@ You can manually synchronize your public activity at any time by clicking **🔄
 
 ## Multilingual Support
 
-GitCord supports English (`en`) and Spanish (`es`) template overrides. 
+GitCord supports English (`en`) and Spanish (`es`) template overrides.
 
-### Setting Language via Discord Slash Command
-Make sure your persistent gateway bot is running (`npm run bot`). In your Discord server, type:
-- `/language lang: Español` (to receive all future repository alerts in Spanish)
-- `/language lang: English` (to receive alerts in English)
+There are two ways to configure the `/language` command inside Discord:
 
-The bot will automatically check which guild a webhook's destination channel belongs to and dynamically format the Discord embed card in the language chosen by that guild.
+### Method A: Serverless via Discord Interactions (Recommended for Vercel)
+You do not need to run a persistent bot. Discord will call your Vercel deployment directly via HTTPS when a user types the slash command.
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) and open your application.
+2. Under **General Information**, copy your **Public Key**.
+3. Add it as `DISCORD_PUBLIC_KEY` to your Vercel Project Environment Variables (and your local `.env`).
+4. Set the **Interactions Endpoint URL** to your deployment URL ending in `/api/interactions` (e.g. `https://my-gitcord.vercel.app/api/interactions`).
+5. Save changes. Discord will verify the endpoint, and you can now use `/language` on your server!
+
+### Method B: Gateway Bot (For Local Testing & Development)
+If you are running the bot locally:
+1. Start the gateway bot client with `npm run bot`.
+2. In your Discord server, run the command `/language lang: Español` or `/language lang: English`.
+
+The bot will save your language selection, automatically check which guild a webhook's destination channel belongs to, and dynamically format the Discord notifications in the language chosen by that guild.

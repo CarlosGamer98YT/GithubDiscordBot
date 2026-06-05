@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendToDiscord, addLog } from '@/lib/discord';
 import { DiscordMessage } from '@/types';
+import { logSystem } from '@/lib/console-hook';
 
 export async function POST(request: NextRequest) {
   try {
@@ -118,6 +119,7 @@ export async function POST(request: NextRequest) {
         status: 'success',
         details: `Test embed delivered to Discord. Channel ID: ${result.channelId}`
       });
+      await logSystem('log', `[Test Simulator] Successfully triggered manual test for event: "${eventType}"`);
       return NextResponse.json({ success: true, channelId: result.channelId }, { status: 200 });
     } else {
       addLog({
@@ -128,10 +130,11 @@ export async function POST(request: NextRequest) {
         status: 'error',
         details: `Failed to deliver test embed. Channel ID: ${result.channelId || 'none'}. Error: ${result.error}`
       });
+      await logSystem('error', `[Test Simulator] Failed manual test for "${eventType}". Error: ${result.error}`);
       return NextResponse.json({ success: false, error: result.error }, { status: 500 });
     }
   } catch (error: any) {
-    console.error('Test endpoint error:', error);
+    await logSystem('error', 'Test endpoint error:', error.message || error);
     return NextResponse.json({ error: error.message || 'System error' }, { status: 500 });
   }
 }

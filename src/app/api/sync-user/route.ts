@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { formatPolledEvent } from '@/lib/github';
 import { sendToDiscord, addLog } from '@/lib/discord';
+import { logSystem } from '@/lib/console-hook';
 import fs from 'fs';
 import path from 'path';
 
@@ -129,13 +130,17 @@ export async function POST(request: NextRequest) {
       console.error('Failed to write cache file:', e);
     }
 
+    if (processedEvents.length > 0) {
+      await logSystem('log', `[Activity Poller] Synced ${processedEvents.length} new GitHub activity events for user @${username}`);
+    }
+
     return NextResponse.json({ 
       success: true, 
       count: processedEvents.length, 
       events: processedEvents 
     });
   } catch (error: any) {
-    console.error('GitHub polling error:', error);
+    await logSystem('error', 'GitHub polling error:', error.message || error);
     return NextResponse.json({ 
       success: false, 
       message: error.message || 'Unknown server error during sync' 

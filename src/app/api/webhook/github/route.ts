@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { formatWebhookEvent } from '@/lib/github';
 import { sendToDiscord, addLog } from '@/lib/discord';
+import { logSystem } from '@/lib/console-hook';
 
 export async function POST(request: NextRequest) {
   const event = request.headers.get('x-github-event') || '';
@@ -21,6 +22,7 @@ export async function POST(request: NextRequest) {
         ? `Ping successful. Sent "Pong!" to Discord channel: ${discordResult.channelId}`
         : `Ping failed to send to Discord. Error: ${discordResult.error}`
     });
+    await logSystem(discordResult.success ? 'log' : 'error', `[Webhook Ping] Webhook connection test processed. Status: ${discordResult.success ? 'SUCCESS' : 'FAILED'}`);
     return NextResponse.json({ message: 'pong' }, { status: 200 });
   }
 
@@ -60,6 +62,7 @@ export async function POST(request: NextRequest) {
         status: 'success',
         details: `Successfully forwarded to Discord channel ID: ${discordResult.channelId}`
       });
+      await logSystem('log', `[Webhook] Successfully forwarded "${event}" event for ${repoName} to Discord`);
       return NextResponse.json({ success: true, message: 'Notification sent' }, { status: 200 });
     } else {
       addLog({
@@ -70,10 +73,11 @@ export async function POST(request: NextRequest) {
         status: 'error',
         details: `Failed to send to Discord (Channel ID: ${discordResult.channelId || 'none'}). Error: ${discordResult.error}`
       });
+      await logSystem('error', `[Webhook] Failed to forward "${event}" event for ${repoName}. Error: ${discordResult.error}`);
       return NextResponse.json({ success: false, error: discordResult.error }, { status: 500 });
     }
   } catch (error: any) {
-    console.error('Webhook processing error:', error);
+    await logSystem('error', 'Webhook processing error:', error.message || error);
     addLog({
       eventType: event || 'error',
       repository: 'Error',

@@ -86,6 +86,18 @@ async function forwardToDiscord(type: 'log' | 'warn' | 'error', message: string)
   }
 }
 
+export async function logSystem(type: 'log' | 'warn' | 'error', ...args: any[]) {
+  const msg = formatConsoleMsg(args);
+  if (type === 'warn') {
+    originalWarn(...args);
+  } else if (type === 'error') {
+    originalError(...args);
+  } else {
+    originalLog(...args);
+  }
+  await forwardToDiscord(type, msg);
+}
+
 export function initConsoleHook() {
   if (globalThis.consoleHooked) {
     return;

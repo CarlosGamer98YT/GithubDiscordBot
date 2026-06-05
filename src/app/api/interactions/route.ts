@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
   // ed25519 verification requires raw string body
   const body = await request.text();
 
-  const isValidRequest = verifyKey(body, signature, timestamp, publicKey);
+  const isValidRequest = await verifyKey(body, signature, timestamp, publicKey);
 
   if (!isValidRequest) {
     await logSystem('warn', '[Discord Interactions] Failed cryptographic verification request.');

@@ -1,3 +1,9 @@
+# What is this?
+
+This is an Discord Github Notifier, notify the user in a text channel from Discord, useful for viewing the user activity
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started

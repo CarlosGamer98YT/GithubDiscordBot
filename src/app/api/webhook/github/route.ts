@@ -6,13 +6,20 @@ export async function POST(request: NextRequest) {
   const event = request.headers.get('x-github-event') || '';
   
   if (event === 'ping') {
+    // Send "Pong!" to the default channel
+    const discordResult = await sendToDiscord('ping', {
+      content: '🏓 **¡Pong!** Conexión de webhook de GitHub establecida con éxito.'
+    });
+
     addLog({
       eventType: 'ping',
       repository: 'N/A',
       sender: 'GitHub System',
       description: 'Webhook successfully connected (ping event)',
-      status: 'success',
-      details: 'Ping connection successful.'
+      status: discordResult.success ? 'success' : 'error',
+      details: discordResult.success 
+        ? `Ping successful. Sent "Pong!" to Discord channel: ${discordResult.channelId}`
+        : `Ping failed to send to Discord. Error: ${discordResult.error}`
     });
     return NextResponse.json({ message: 'pong' }, { status: 200 });
   }

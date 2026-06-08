@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyKey } from 'discord-interactions';
-import { setGuildLanguage } from '@/lib/i18n';
+import { setGuildLanguage, updateChannelTopicLanguage } from '@/lib/i18n';
 import { logSystem } from '@/lib/console-hook';
 import { notifyDeploymentOnce } from '@/lib/discord';
 
@@ -43,14 +43,27 @@ export async function POST(request: NextRequest) {
       if (name === 'language') {
         const lang = options[0].value as 'en' | 'es';
         const guildId = interaction.guild_id || 'global';
+        const channelId = interaction.channel_id || '';
 
         await setGuildLanguage(guildId, lang);
         
-        await logSystem('log', `[Discord Interactions] Command /language received. Guild: ${guildId}, Set to: ${lang}`);
+        // Try to update channel topic as database-free persistent language storage
+        let topicUpdated = false;
+        if (channelId) {
+          topicUpdated = await updateChannelTopicLanguage(channelId, lang);
+        }
+        
+        await logSystem('log', `[Discord Interactions] Command /language received. Guild: ${guildId}, Channel: ${channelId}, Set to: ${lang}, Topic updated: ${topicUpdated}`);
 
-        const replyContent = lang === 'es'
+        let replyContent = lang === 'es'
           ? '✅ ¡Idioma cambiado a **Español** para este servidor de Discord!'
           : '✅ Language changed to **English** for this Discord server!';
+
+        if (!topicUpdated && channelId) {
+          replyContent += lang === 'es'
+            ? '\n⚠️ *Nota: No pude actualizar el tema del canal automáticamente (falta el permiso "Gestionar canales" al Bot). Agrega manualmente `[gitcord-lang: es]` al tema/descripción de este canal en Discord para guardarlo de forma permanente en Vercel.*'
+            : '\n⚠️ *Note: I could not update the channel topic automatically (Bot is missing "Manage Channels" permission). Please manually add `[gitcord-lang: en]` to this channel\'s topic/description in Discord to make it persist on Vercel.*';
+        }
 
         return NextResponse.json({
           type: 4, // CHANNEL_MESSAGE_WITH_SOURCE

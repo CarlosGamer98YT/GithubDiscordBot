@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { formatWebhookEvent } from '@/lib/github';
 import { sendToDiscord, addLog, EVENT_CHANNEL_MAP, notifyDeploymentOnce } from '@/lib/discord';
 import { logSystem } from '@/lib/console-hook';
-import { resolveGuildIdForChannel, getGuildLanguage } from '@/lib/i18n';
+import { resolveGuildIdForChannel, getLanguageForChannel } from '@/lib/i18n';
 
 export async function POST(request: NextRequest) {
   // Trigger deployment notification once
@@ -40,14 +40,10 @@ export async function POST(request: NextRequest) {
       if (action === 'deleted') mappedEvent = 'repository_delete';
     }
 
-    // Resolve channel, guild, and language settings for the event
+    // Resolve channel and language settings for the event
     const envVarName = EVENT_CHANNEL_MAP[mappedEvent] || 'DISCORD_CHANNEL_DEFAULT';
     const channelId = process.env[envVarName] || process.env.DISCORD_CHANNEL_DEFAULT || '';
-    let lang: 'en' | 'es' = 'en';
-    if (channelId) {
-      const guildId = await resolveGuildIdForChannel(channelId);
-      lang = await getGuildLanguage(guildId);
-    }
+    const lang = await getLanguageForChannel(channelId, mappedEvent);
 
     // Parse the event using target language
     const parsed = formatWebhookEvent(event, body, lang);

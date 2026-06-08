@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { formatPolledEvent } from '@/lib/github';
 import { sendToDiscord, addLog, EVENT_CHANNEL_MAP } from '@/lib/discord';
 import { logSystem } from '@/lib/console-hook';
-import { resolveGuildIdForChannel, getGuildLanguage } from '@/lib/i18n';
+import { resolveGuildIdForChannel, getLanguageForChannel } from '@/lib/i18n';
 import fs from 'fs';
 import path from 'path';
 
@@ -98,14 +98,10 @@ export async function POST(request: NextRequest) {
       if (event.type === 'PullRequestEvent') eventType = 'pull_request';
       if (event.type === 'PushEvent') eventType = 'push';
 
-      // Resolve guild and language for this event channel
+      // Resolve language settings for the event channel
       const envVarName = EVENT_CHANNEL_MAP[eventType] || 'DISCORD_CHANNEL_DEFAULT';
       const channelId = process.env[envVarName] || process.env.DISCORD_CHANNEL_DEFAULT || '';
-      let lang: 'en' | 'es' = 'en';
-      if (channelId) {
-        const guildId = await resolveGuildIdForChannel(channelId);
-        lang = await getGuildLanguage(guildId);
-      }
+      const lang = await getLanguageForChannel(channelId, eventType);
 
       const parsed = await formatPolledEvent(event, lang, headers);
       if (!parsed) continue;

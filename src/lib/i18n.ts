@@ -110,6 +110,7 @@ const getChannelCacheFilePath = () => {
 // Local in-memory caches (for Vercel warm instances)
 let guildLangCache: Record<string, 'en' | 'es'> = {};
 let channelGuildCache: Record<string, string> = {};
+let channelLangTopicCache: Record<string, 'en' | 'es'> = {};
 
 /**
  * Saves guild language setting
@@ -243,6 +244,171 @@ export async function resolveGuildIdForChannel(channelId: string): Promise<strin
   }
 
   return 'global';
+}
+
+/**
+ * Gets the language setting for a specific channel ID (using environment, local file, or Discord topic).
+ */
+export async function getLanguageForChannel(channelId: string, eventType?: string): Promise<'en' | 'es'> {
+  if (!channelId) return (process.env.DEFAULT_LANGUAGE as 'en' | 'es') || 'en';
+
+  // 1. Check environment variables first
+  if (eventType) {
+    const eventLangEnv = `DISCORD_LANG_${eventType.toUpperCase()}`;
+    if (process.env[eventLangEnv] === 'en' || process.env[eventLangEnv] === 'es') {
+      return process.env[eventLangEnv] as 'en' | 'es';
+    }
+  }
+
+  if (process.env.DISCORD_CHANNEL_LANGUAGES) {
+    const pairs = process.env.DISCORD_CHANNEL_LANGUAGES.split(',');
+    for (const pair of pairs) {
+      const [cId, lang] = pair.split(':');
+      if (cId === channelId && (lang === 'en' || lang === 'es')) {
+        return lang as 'en' | 'es';
+      }
+    }
+  }
+
+  // 2. Check memory/file cache for channel specific configuration
+  if (channelLangTopicCache[channelId]) {
+    return channelLangTopicCache[channelId];
+  }
+
+  const filePath = getLanguageFilePath();
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      if (data[channelId] === 'en' || data[channelId] === 'es') {
+        channelLangTopicCache[channelId] = data[channelId] as 'en' | 'es';
+        return data[channelId] as 'en' | 'es';
+      }
+    }
+  } catch {}
+
+  // 3. Resolve guild ID and check guild language setting
+  const guildId = await resolveGuildIdForChannel(channelId);
+  if (guildId && guildId !== 'global') {
+    try {
+      if (fs.existsSync(filePath)) {
+        const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        if (data[guildId] === 'en' || data[guildId] === 'es') {
+          return data[guildId] as 'en' | 'es';
+        }
+      }
+    } catch {}
+  }
+
+  // 4. Fetch details from Discord API to check if it's cached in the channel topic
+  const botToken = process.env.DISCORD_TOKEN;
+  if (botToken) {
+    try {
+      const res = await fetch(`https://discord.com/api/v10/channels/${channelId}`, {
+        headers: {
+          'Authorization': `Bot ${botToken}`
+        },
+        next: { revalidate: 300 } // Cache for 5 minutes in Next.js/Vercel
+      } as any);
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.topic) {
+          const match = data.topic.match(/\[gitcord-lang:\s*(en|es)\]/i);
+          if (match) {
+            const topicLang = match[1].toLowerCase() as 'en' | 'es';
+            channelLangTopicCache[channelId] = topicLang;
+            return topicLang;
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error(`[i18n] Error checking channel topic on Discord:`, err.message || err);
+    }
+  }
+
+  // 5. Fallback: If there is a single language configured across the file, use it
+  try {
+    if (fs.existsSync(filePath)) {
+      const data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const langs = Object.values(data).filter(v => v === 'en' || v === 'es');
+      const uniqueLangs = Array.from(new Set(langs));
+      if (uniqueLangs.length === 1) {
+        return uniqueLangs[0] as 'en' | 'es';
+      }
+    }
+  } catch {}
+
+  // 6. Final fallback
+  return (process.env.DEFAULT_LANGUAGE as 'en' | 'es') || 'en';
+}
+
+/**
+ * Updates a Discord channel's topic to append the language configuration tag.
+ */
+export async function updateChannelTopicLanguage(channelId: string, lang: 'en' | 'es'): Promise<boolean> {
+  const botToken = process.env.DISCORD_TOKEN;
+  if (!botToken || !channelId) return false;
+
+  try {
+    // 1. Fetch channel details to preserve existing topic
+    const getRes = await fetch(`https://discord.com/api/v10/channels/${channelId}`, {
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+      },
+      next: { revalidate: 0 }
+    } as any);
+
+    if (!getRes.ok) {
+      console.warn(`[i18n] Failed to fetch channel details to update topic: status ${getRes.status}`);
+      return false;
+    }
+
+    const channelData = await getRes.json();
+    const currentTopic = channelData.topic || '';
+    
+    // 2. Strip existing gitcord-lang tag and append new one
+    const cleanTopic = currentTopic.replace(/\[gitcord-lang:\s*(en|es)\]/gi, '').trim();
+    const newTopic = cleanTopic ? `${cleanTopic} [gitcord-lang: ${lang}]` : `[gitcord-lang: ${lang}]`;
+
+    // 3. Patch the channel topic
+    const patchRes = await fetch(`https://discord.com/api/v10/channels/${channelId}`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bot ${botToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        topic: newTopic,
+      }),
+    });
+
+    if (patchRes.ok) {
+      channelLangTopicCache[channelId] = lang;
+      
+      // Also save locally in the JSON file for additional redundancy
+      try {
+        const filePath = getLanguageFilePath();
+        let data: Record<string, string> = {};
+        if (fs.existsSync(filePath)) {
+          data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+        }
+        data[channelId] = lang;
+        fs.writeFileSync(filePath, JSON.stringify(data), 'utf8');
+      } catch (e) {
+        console.error('Failed to write channel language cache file:', e);
+      }
+
+      console.log(`[i18n] Successfully updated Discord channel topic for ${channelId} to: "${newTopic}"`);
+      return true;
+    } else {
+      const errText = await patchRes.text();
+      console.warn(`[i18n] Failed to patch channel topic: status ${patchRes.status} - ${errText}`);
+      return false;
+    }
+  } catch (err: any) {
+    console.error(`[i18n] Error updating channel topic for ${channelId}:`, err.message || err);
+    return false;
+  }
 }
 
 /**

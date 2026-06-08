@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, TextChannel, ActivityType, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { initConsoleHook } from './lib/console-hook';
-import { setGuildLanguage, saveChannelGuildMap } from './lib/i18n';
+import { setGuildLanguage, saveChannelGuildMap, updateChannelTopicLanguage } from './lib/i18n';
 
 // Initialize console hook for the gateway bot
 if (process.env.DISCORD_CHANNEL_LOGS) {
@@ -185,24 +185,33 @@ client.on('interactionCreate', async (interaction) => {
   if (commandName === 'language') {
     const lang = interaction.options.getString('lang') as 'en' | 'es';
     const guildId = interaction.guildId || 'global';
+    const channelId = interaction.channelId || '';
 
     try {
       await setGuildLanguage(guildId, lang);
       
-      if (lang === 'es') {
-        await interaction.reply({ 
-          content: '✅ ¡Idioma cambiado a **Español** para este servidor de Discord!', 
-          ephemeral: true 
-        });
-        console.log(`🌐 Language for guild ${guildId} changed to Spanish.`);
-      } else {
-        await interaction.reply({ 
-          content: '✅ Language changed to **English** for this Discord server!', 
-          ephemeral: true 
-        });
-        console.log(`🌐 Language for guild ${guildId} changed to English.`);
+      // Try to update channel topic as database-free persistent language storage
+      let topicUpdated = false;
+      if (channelId) {
+        topicUpdated = await updateChannelTopicLanguage(channelId, lang);
       }
-    } catch (err) {
+
+      let replyContent = lang === 'es'
+        ? '✅ ¡Idioma cambiado a **Español** para este servidor de Discord!'
+        : '✅ Language changed to **English** for this Discord server!';
+
+      if (!topicUpdated && channelId) {
+        replyContent += lang === 'es'
+          ? '\n⚠️ *Nota: No pude actualizar el tema del canal automáticamente (falta el permiso "Gestionar canales" al Bot). Agrega manualmente `[gitcord-lang: es]` al tema/descripción de este canal en Discord para guardarlo de forma permanente en Vercel.*'
+          : '\n⚠️ *Note: I could not update the channel topic automatically (Bot is missing "Manage Channels" permission). Please manually add `[gitcord-lang: en]` to this channel\'s topic/description in Discord to make it persist on Vercel.*';
+      }
+
+      await interaction.reply({ 
+        content: replyContent, 
+        ephemeral: true 
+      });
+      console.log(`🌐 Language for guild ${guildId} (Channel: ${channelId}) changed to ${lang === 'es' ? 'Spanish' : 'English'}. Topic updated: ${topicUpdated}`);
+    } catch (err: any) {
       console.error('❌ Error updating language:', err);
       await interaction.reply({ 
         content: '❌ Error: Failed to update language / No se pudo actualizar el idioma.', 

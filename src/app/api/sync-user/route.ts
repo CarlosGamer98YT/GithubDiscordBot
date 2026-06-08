@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
         lang = await getGuildLanguage(guildId);
       }
 
-      const parsed = formatPolledEvent(event, lang);
+      const parsed = await formatPolledEvent(event, lang, headers);
       if (!parsed) continue;
 
       const { message, description, repoName } = parsed;

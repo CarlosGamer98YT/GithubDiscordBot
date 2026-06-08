@@ -105,6 +105,55 @@ client.once('ready', async () => {
   } else {
     console.log('ℹ️ DISCORD_CHANNEL_DEFAULT is not configured, skipping greeting message.');
   }
+
+  // Background Auto-Sync loop (if GITHUB_USERNAME is configured)
+  const githubUsername = process.env.GITHUB_USERNAME;
+  if (githubUsername) {
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    // Polling interval in minutes, default 5 minutes
+    const intervalMinutes = parseInt(process.env.POLLING_INTERVAL || '5', 10);
+    const intervalMs = intervalMinutes * 60 * 1000;
+
+    console.log(`⏱️ [Auto-Sync] Initializing background syncing for @${githubUsername} every ${intervalMinutes} minute(s)...`);
+    console.log(`⏱️ [Auto-Sync] Target Dashboard URL: ${appUrl}`);
+
+    const runAutoSync = async () => {
+      console.log(`🔄 [Auto-Sync] Triggering user activity synchronization...`);
+      try {
+        const syncRes = await fetch(`${appUrl}/api/sync-user`, {
+          method: 'POST',
+        });
+        if (syncRes.ok) {
+          const data = await syncRes.json();
+          if (data.success) {
+            console.log(`✅ [Auto-Sync] Synchronization complete. Forwarded ${data.count} new events.`);
+          } else {
+            console.warn(`⚠️ [Auto-Sync] Synchronization reported failure: ${data.message || 'Unknown error'}`);
+          }
+        } else {
+          console.warn(`⚠️ [Auto-Sync] Failed to sync. HTTP Status: ${syncRes.status}`);
+        }
+      } catch (err: any) {
+        console.error(`❌ [Auto-Sync] Network error during synchronization:`, err.message || err);
+      }
+    };
+
+    // Run once on startup (after 5 seconds to let server spin up/settle if running concurrently)
+    setTimeout(() => {
+      runAutoSync().catch(err => console.error(`❌ [Auto-Sync] Initial run error:`, err));
+    }, 5000);
+
+    const autoSyncInterval = setInterval(() => {
+      runAutoSync().catch(err => console.error(`❌ [Auto-Sync] Interval run error:`, err));
+    }, intervalMs);
+
+    // Clean up interval on shutdown
+    process.on('SIGINT', () => {
+      clearInterval(autoSyncInterval);
+    });
+  } else {
+    console.log('ℹ️ [Auto-Sync] GITHUB_USERNAME is not configured, background syncing disabled.');
+  }
 });
 
 // Handle Slash Command Interactions

@@ -228,7 +228,11 @@ export function formatWebhookEvent(
 /**
  * Parses a polled event from the GitHub events API and maps it to a DiscordMessage in the specified language.
  */
-export function formatPolledEvent(event: any, lang: 'en' | 'es' = 'en'): { message: DiscordMessage; description: string; repoName: string } | null {
+export async function formatPolledEvent(
+  event: any, 
+  lang: 'en' | 'es' = 'en',
+  headers: Record<string, string> = {}
+): Promise<{ message: DiscordMessage; description: string; repoName: string } | null> {
   const type = event.type;
   const actor = event.actor?.login || 'User';
   const actorUrl = `https://github.com/${actor}`;
@@ -316,20 +320,67 @@ export function formatPolledEvent(event: any, lang: 'en' | 'es' = 'en'): { messa
     }
 
     case 'PushEvent': {
-      const commits = event.payload?.commits || [];
       const branch = event.payload?.ref?.replace('refs/heads/', '') || 'main';
-      const headCommit = commits[0];
+      const before = event.payload?.before;
+      const head = event.payload?.head;
+
+      let commitsCount = 0;
+      let headCommitMessage = 'No commit message';
+
+      if (head) {
+        // Try comparing first (if before exists and is not all zeros)
+        const isBeforeValid = before && before !== '0000000000000000000000000000000000000000';
+        let fetchedSuccess = false;
+
+        if (isBeforeValid) {
+          try {
+            const compRes = await fetch(`https://api.github.com/repos/${repoName}/compare/${before}...${head}`, {
+              headers,
+              next: { revalidate: 0 }
+            });
+            if (compRes.ok) {
+              const compData = await compRes.json();
+              commitsCount = compData.total_commits || compData.commits?.length || 0;
+              const lastCommit = compData.commits?.[compData.commits.length - 1];
+              if (lastCommit) {
+                headCommitMessage = lastCommit.commit?.message || 'No commit message';
+                fetchedSuccess = true;
+              }
+            }
+          } catch (e) {
+            console.error(`Error comparing commits for ${repoName}:`, e);
+          }
+        }
+
+        // Fallback to fetching head commit directly if compare failed or before is invalid
+        if (!fetchedSuccess) {
+          try {
+            const commitRes = await fetch(`https://api.github.com/repos/${repoName}/commits/${head}`, {
+              headers,
+              next: { revalidate: 0 }
+            });
+            if (commitRes.ok) {
+              const commitData = await commitRes.json();
+              headCommitMessage = commitData.commit?.message || 'No commit message';
+              commitsCount = 1;
+            }
+          } catch (e) {
+            console.error(`Error fetching head commit for ${repoName}:`, e);
+          }
+        }
+      }
+
       description = `pushed to **${branch}** on **${repoName}**`;
       
       embeds.push({
         ...baseEmbed,
         title: t('poller_push_title', lang, { branch }),
         url: repoUrl,
-        description: t('poller_push_desc', lang, { actor, actorUrl, count: commits.length.toString(), repoName, repoUrl }),
+        description: t('poller_push_desc', lang, { actor, actorUrl, count: commitsCount.toString(), repoName, repoUrl }),
         color: 3447003, // Blue
         fields: [
           { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true },
-          { name: 'Head Commit Message', value: headCommit?.message || 'No commit message', inline: false }
+          { name: 'Head Commit Message', value: headCommitMessage, inline: false }
         ]
       });
       break;

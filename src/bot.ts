@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, TextChannel, ActivityType, REST, Routes, SlashCommandBuilder } from 'discord.js';
 import { initConsoleHook } from './lib/console-hook';
-import { setGuildLanguage } from './lib/i18n';
+import { setGuildLanguage, saveChannelGuildMap } from './lib/i18n';
 
 // Initialize console hook for the gateway bot
 if (process.env.DISCORD_CHANNEL_LOGS) {
@@ -71,6 +71,7 @@ client.once('ready', async () => {
 
     // Register specifically for all guilds the bot is currently in (instant update!)
     const guilds = await client.guilds.fetch();
+    const channelGuildMap: Record<string, string> = {};
     for (const [guildId, guild] of guilds) {
       try {
         await rest.put(
@@ -78,8 +79,27 @@ client.once('ready', async () => {
           { body: commands }
         );
         console.log(`✅ Guild slash commands registered instantly for guild: ${guild.name || guildId}`);
+        
+        // Fetch all channels in the guild to map them for webhook processing
+        const fullGuild = await guild.fetch();
+        const channels = await fullGuild.channels.fetch();
+        for (const [channelId, channel] of channels) {
+          if (channel) {
+            channelGuildMap[channelId] = guildId;
+          }
+        }
       } catch (err: any) {
-        console.warn(`⚠️ Warning: Failed to register guild commands for guild ${guildId}:`, err.message || err);
+        console.warn(`⚠️ Warning: Failed to register commands or cache channels for guild ${guildId}:`, err.message || err);
+      }
+    }
+
+    // Save channel guild map cache
+    if (Object.keys(channelGuildMap).length > 0) {
+      try {
+        await saveChannelGuildMap(channelGuildMap);
+        console.log(`✅ Cached ${Object.keys(channelGuildMap).length} channel-to-guild mappings.`);
+      } catch (err: any) {
+        console.error('❌ Failed to save channel-to-guild map cache:', err.message || err);
       }
     }
   } catch (err) {

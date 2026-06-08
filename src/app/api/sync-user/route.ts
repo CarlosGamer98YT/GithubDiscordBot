@@ -6,8 +6,13 @@ import { resolveGuildIdForChannel, getGuildLanguage } from '@/lib/i18n';
 import fs from 'fs';
 import path from 'path';
 
-// Define the temporary cache file path inside /tmp (serverless container storage)
-const getCacheFilePath = (username: string) => path.join('/tmp', `github_last_event_${username}.json`);
+// Define the temporary cache file path (serverless container storage on Vercel, local project dir elsewhere)
+const getCacheFilePath = (username: string) => {
+  if (process.env.VERCEL) {
+    return path.join('/tmp', `github_last_event_${username}.json`);
+  }
+  return path.join(process.cwd(), `github_last_event_${username}.json`);
+};
 
 export async function POST(request: NextRequest) {
   const username = process.env.GITHUB_USERNAME;

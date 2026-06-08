@@ -93,8 +93,19 @@ export const translations = {
   }
 };
 
-const getLanguageFilePath = () => path.join('/tmp', 'guild_languages.json');
-const getChannelCacheFilePath = () => path.join('/tmp', 'channel_guild_map.json');
+const getLanguageFilePath = () => {
+  if (process.env.VERCEL) {
+    return path.join('/tmp', 'guild_languages.json');
+  }
+  return path.join(process.cwd(), 'guild_languages.json');
+};
+
+const getChannelCacheFilePath = () => {
+  if (process.env.VERCEL) {
+    return path.join('/tmp', 'channel_guild_map.json');
+  }
+  return path.join(process.cwd(), 'channel_guild_map.json');
+};
 
 // Local in-memory caches (for Vercel warm instances)
 let guildLangCache: Record<string, 'en' | 'es'> = {};
@@ -106,7 +117,6 @@ let channelGuildCache: Record<string, string> = {};
 export async function setGuildLanguage(guildId: string, lang: 'en' | 'es') {
   guildLangCache[guildId] = lang;
   
-  // Save to /tmp json file for persistence in the warm container
   try {
     const filePath = getLanguageFilePath();
     let data: Record<string, 'en' | 'es'> = {};
@@ -121,6 +131,24 @@ export async function setGuildLanguage(guildId: string, lang: 'en' | 'es') {
 }
 
 /**
+ * Saves channel to guild mapping cache
+ */
+export async function saveChannelGuildMap(map: Record<string, string>) {
+  Object.assign(channelGuildCache, map);
+  try {
+    const filePath = getChannelCacheFilePath();
+    let data: Record<string, string> = {};
+    if (fs.existsSync(filePath)) {
+      data = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    }
+    Object.assign(data, map);
+    fs.writeFileSync(filePath, JSON.stringify(data), 'utf8');
+  } catch (e) {
+    console.error('Failed to write channel-guild cache file:', e);
+  }
+}
+
+/**
  * Gets guild language setting
  */
 export async function getGuildLanguage(guildId: string): Promise<'en' | 'es'> {
@@ -128,7 +156,7 @@ export async function getGuildLanguage(guildId: string): Promise<'en' | 'es'> {
     return guildLangCache[guildId];
   }
   
-  // Read from /tmp json file
+  // Read from json file
   try {
     const filePath = getLanguageFilePath();
     if (fs.existsSync(filePath)) {
@@ -136,6 +164,17 @@ export async function getGuildLanguage(guildId: string): Promise<'en' | 'es'> {
       if (data[guildId]) {
         guildLangCache[guildId] = data[guildId];
         return data[guildId];
+      }
+      
+      // Smart Fallback: If guildId is 'global' or not found, but we have configurations in the file,
+      // check if there is a single language configured across all guilds and use it.
+      const keys = Object.keys(data);
+      if (keys.length > 0) {
+        const langs = Object.values(data);
+        const uniqueLangs = Array.from(new Set(langs));
+        if (uniqueLangs.length === 1) {
+          return uniqueLangs[0] as 'en' | 'es';
+        }
       }
     }
   } catch (e) {
@@ -155,7 +194,7 @@ export async function resolveGuildIdForChannel(channelId: string): Promise<strin
     return channelGuildCache[channelId];
   }
 
-  // Read from /tmp json file
+  // Read from json file
   try {
     const filePath = getChannelCacheFilePath();
     if (fs.existsSync(filePath)) {

@@ -77,14 +77,14 @@ export async function POST(request: NextRequest) {
         eventsToProcess = events.slice(0, lastEventIndex);
       } else if (lastEventIndex === -1) {
         // Last event is no longer in the list (GitHub events are capped at 30 items),
-        // fallback to processing only events in the last 5 minutes to avoid spam
-        const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-        eventsToProcess = events.filter(e => new Date(e.created_at) > fiveMinutesAgo);
+        // fallback to processing only events in the last 3 hours to avoid spam
+        const threeHoursAgo = new Date(Date.now() - 180 * 60 * 1000);
+        eventsToProcess = events.filter(e => new Date(e.created_at) > threeHoursAgo);
       }
     } else {
-      // First run: only process events from the last 5 minutes to avoid historical spam
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
-      eventsToProcess = events.filter(e => new Date(e.created_at) > fiveMinutesAgo);
+      // First run: only process events from the last 3 hours to avoid historical spam
+      const threeHoursAgo = new Date(Date.now() - 180 * 60 * 1000);
+      eventsToProcess = events.filter(e => new Date(e.created_at) > threeHoursAgo);
     }
 
     // Process new events (from oldest to newest to post in chronological order)
@@ -92,11 +92,12 @@ export async function POST(request: NextRequest) {
     eventsToProcess.reverse(); // Now index 0 is oldest new event
 
     for (const event of eventsToProcess) {
-      // Determine event type for mapping channels
       let eventType = 'watch'; // Default mapping
       if (event.type === 'ForkEvent') eventType = 'fork';
       if (event.type === 'PullRequestEvent') eventType = 'pull_request';
       if (event.type === 'PushEvent') eventType = 'push';
+      if (event.type === 'CreateEvent' && (event.payload?.ref_type === 'repository' || (event.payload?.ref_type === 'branch' && event.payload?.ref === event.payload?.master_branch))) eventType = 'repository_create';
+      if (event.type === 'DeleteEvent' && event.payload?.ref_type === 'repository') eventType = 'repository_delete';
 
       // Resolve language settings for the event channel
       const envVarName = EVENT_CHANNEL_MAP[eventType] || 'DISCORD_CHANNEL_DEFAULT';

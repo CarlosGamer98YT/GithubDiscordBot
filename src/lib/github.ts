@@ -386,6 +386,44 @@ export async function formatPolledEvent(
       break;
     }
 
+    case 'CreateEvent': {
+      const refType = event.payload?.ref_type;
+      const ref = event.payload?.ref;
+      const masterBranch = event.payload?.master_branch;
+      const isRepoCreate = refType === 'repository' || (refType === 'branch' && ref === masterBranch);
+      if (!isRepoCreate) return null;
+
+      description = `created repository **${repoName}**`;
+      embeds.push({
+        ...baseEmbed,
+        title: t('repo_created_title', lang),
+        url: repoUrl,
+        description: t('repo_created_desc', lang, { sender: actor, senderUrl: actorUrl, repository: repoName, repoUrl }),
+        color: 3066993, // Green
+        fields: [
+          { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true },
+          { name: 'Owner', value: actor, inline: true }
+        ]
+      });
+      break;
+    }
+
+    case 'DeleteEvent': {
+      if (event.payload?.ref_type !== 'repository') return null;
+      description = `deleted repository **${repoName}**`;
+      embeds.push({
+        ...baseEmbed,
+        title: t('repo_deleted_title', lang),
+        description: t('repo_deleted_desc', lang, { sender: actor, senderUrl: actorUrl, repository: repoName }),
+        color: 15158332, // Red
+        fields: [
+          { name: 'Repository', value: repoName, inline: true },
+          { name: 'Owner', value: actor, inline: true }
+        ]
+      });
+      break;
+    }
+
     default:
       return null;
   }

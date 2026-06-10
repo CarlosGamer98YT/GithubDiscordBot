@@ -3,15 +3,17 @@ import { formatPolledEvent } from '@/lib/github';
 import { sendToDiscord, addLog, EVENT_CHANNEL_MAP } from '@/lib/discord';
 import { logSystem } from '@/lib/console-hook';
 import { resolveGuildIdForChannel, getLanguageForChannel } from '@/lib/i18n';
+import { t } from '@/lib/i18n';
 import fs from 'fs';
 import path from 'path';
 
 // Define the temporary cache file path (serverless container storage on Vercel, local project dir elsewhere)
-const getCacheFilePath = (username: string) => {
+const getCacheFilePath = (username: string, suffix: string = '') => {
+  const filename = suffix ? `github_${suffix}_${username}.json` : `github_last_event_${username}.json`;
   if (process.env.VERCEL) {
-    return path.join('/tmp', `github_last_event_${username}.json`);
+    return path.join('/tmp', filename);
   }
-  return path.join(process.cwd(), `github_last_event_${username}.json`);
+  return path.join(process.cwd(), filename);
 };
 
 export async function POST(request: NextRequest) {
@@ -97,7 +99,8 @@ export async function POST(request: NextRequest) {
       if (event.type === 'PullRequestEvent') eventType = 'pull_request';
       if (event.type === 'PushEvent') eventType = 'push';
       if (event.type === 'CreateEvent' && (event.payload?.ref_type === 'repository' || (event.payload?.ref_type === 'branch' && event.payload?.ref === event.payload?.master_branch))) eventType = 'repository_create';
-      if (event.type === 'DeleteEvent' && event.payload?.ref_type === 'repository') eventType = 'repository_delete';
+      // Note: DeleteEvent with ref_type=repository is never emitted by GitHub Events API.
+      // Repo deletions are detected via repo list comparison below.
 
       // Resolve language settings for the event channel
       const envVarName = EVENT_CHANNEL_MAP[eventType] || 'DISCORD_CHANNEL_DEFAULT';
@@ -142,6 +145,104 @@ export async function POST(request: NextRequest) {
       console.error('Failed to write cache file:', e);
     }
 
+    // --- Detect deleted repositories via repo list comparison ---
+    // GitHub's Events API never emits DeleteEvent with ref_type=repository,
+    // so we compare the current repo list with a cached snapshot to detect deletions.
+    const reposCacheFile = getCacheFilePath(username, 'repos');
+    let deletedRepos: string[] = [];
+
+    try {
+      // Fetch all repos for the authenticated user (handles pagination up to 100)
+      const reposRes = await fetch(`https://api.github.com/user/repos?per_page=100&sort=full_name&affiliation=owner`, {
+        headers,
+        next: { revalidate: 0 }
+      });
+
+      if (reposRes.ok) {
+        const repos = await reposRes.json();
+        const currentRepoNames: string[] = Array.isArray(repos) 
+          ? repos.map((r: any) => r.full_name) 
+          : [];
+
+        // Load previous repo list from cache
+        if (fs.existsSync(reposCacheFile)) {
+          try {
+            const cachedData = JSON.parse(fs.readFileSync(reposCacheFile, 'utf8'));
+            const previousRepoNames: string[] = cachedData.repos || [];
+
+            // Repos that were in the previous list but not in the current one = deleted
+            deletedRepos = previousRepoNames.filter(name => !currentRepoNames.includes(name));
+          } catch (e) {
+            console.error('Failed to parse repos cache file:', e);
+          }
+        }
+
+        // Save current repo list to cache
+        try {
+          fs.writeFileSync(reposCacheFile, JSON.stringify({ repos: currentRepoNames, updatedAt: new Date().toISOString() }), 'utf8');
+        } catch (e) {
+          console.error('Failed to write repos cache file:', e);
+        }
+
+        // Send Discord notifications for deleted repos
+        for (const deletedRepo of deletedRepos) {
+          const envVarName = EVENT_CHANNEL_MAP['repository_delete'] || 'DISCORD_CHANNEL_DEFAULT';
+          const channelId = process.env[envVarName] || process.env.DISCORD_CHANNEL_DEFAULT || '';
+          const lang = await getLanguageForChannel(channelId, 'repository_delete');
+
+          const embed = {
+            title: t('repo_deleted_title', lang),
+            description: t('repo_deleted_desc', lang, {
+              sender: username,
+              senderUrl: `https://github.com/${username}`,
+              repository: deletedRepo
+            }),
+            color: 15158332, // Red
+            fields: [
+              { name: 'Repository', value: deletedRepo, inline: true },
+              { name: 'Owner', value: username, inline: true }
+            ],
+            timestamp: new Date().toISOString(),
+            footer: {
+              text: 'GitCord Poller',
+              icon_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png',
+            },
+            author: {
+              name: username,
+              url: `https://github.com/${username}`,
+              icon_url: `https://github.com/${username}.png`,
+            },
+          };
+
+          const discordResult = await sendToDiscord('repository_delete', { embeds: [embed] });
+
+          if (discordResult.success) {
+            const log = addLog({
+              eventType: 'repository_delete-poll',
+              repository: deletedRepo,
+              sender: username,
+              description: `Poller: user deleted repository **${deletedRepo}**`,
+              status: 'success',
+              details: `Detected repo deletion via repo list diff. Discord Channel ID: ${discordResult.channelId}`
+            });
+            processedEvents.push(log);
+          } else {
+            const log = addLog({
+              eventType: 'repository_delete-poll',
+              repository: deletedRepo,
+              sender: username,
+              description: `Poller: user deleted repository **${deletedRepo}** (FAILED)`,
+              status: 'error',
+              details: `Failed to send repo deletion notification. Error: ${discordResult.error}`
+            });
+            processedEvents.push(log);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to detect deleted repos:', e);
+    }
+
     if (processedEvents.length > 0) {
       await logSystem('log', `[Activity Poller] Synced ${processedEvents.length} new GitHub activity events for user @${username}`);
     }
@@ -149,7 +250,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       count: processedEvents.length, 
-      events: processedEvents 
+      events: processedEvents,
+      deletedRepos: deletedRepos.length > 0 ? deletedRepos : undefined
     });
   } catch (error: any) {
     await logSystem('error', 'GitHub polling error:', error.message || error);

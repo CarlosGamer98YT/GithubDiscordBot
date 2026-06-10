@@ -408,21 +408,8 @@ export async function formatPolledEvent(
       break;
     }
 
-    case 'DeleteEvent': {
-      if (event.payload?.ref_type !== 'repository') return null;
-      description = `deleted repository **${repoName}**`;
-      embeds.push({
-        ...baseEmbed,
-        title: t('repo_deleted_title', lang),
-        description: t('repo_deleted_desc', lang, { sender: actor, senderUrl: actorUrl, repository: repoName }),
-        color: 15158332, // Red
-        fields: [
-          { name: 'Repository', value: repoName, inline: true },
-          { name: 'Owner', value: actor, inline: true }
-        ]
-      });
-      break;
-    }
+    // Note: 'DeleteEvent' with ref_type=repository is never emitted by GitHub Events API.
+    // Repository deletions are detected via repo list comparison in sync-user/route.ts.
 
     default:
       return null;

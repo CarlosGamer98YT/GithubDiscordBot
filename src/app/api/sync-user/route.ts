@@ -107,7 +107,9 @@ async function writePersistedState(
   }
 }
 
-export async function POST(request: NextRequest) {
+// --- Core sync logic (shared by GET and POST) ---
+
+async function handleSync() {
   const username = process.env.GITHUB_USERNAME;
   const pat = process.env.GITHUB_PAT;
   const botToken = process.env.DISCORD_TOKEN || '';
@@ -166,18 +168,19 @@ export async function POST(request: NextRequest) {
         eventsToProcess = [];
       } else {
         // lastEventId no longer in the list — use numeric ID comparison to avoid duplicates
-        // GitHub event IDs are monotonically increasing numeric strings
         eventsToProcess = events.filter((e: any) => {
           try {
             return BigInt(e.id) > BigInt(lastEventId);
           } catch {
-            return false; // Skip if IDs can't be compared
+            return false;
           }
         });
       }
     } else {
-      // First run ever: save state only, don't spam with historical events
-      eventsToProcess = [];
+      // First run: process only events from the last 10 minutes to avoid historical spam
+      // but still pick up very recent activity
+      const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+      eventsToProcess = events.filter((e: any) => new Date(e.created_at) > tenMinutesAgo);
     }
 
     // Process new events (from oldest to newest to post in chronological order)
@@ -189,6 +192,7 @@ export async function POST(request: NextRequest) {
       if (event.type === 'ForkEvent') eventType = 'fork';
       if (event.type === 'PullRequestEvent') eventType = 'pull_request';
       if (event.type === 'PushEvent') eventType = 'push';
+      if (event.type === 'IssuesEvent') eventType = 'issues';
       if (event.type === 'CreateEvent' && (event.payload?.ref_type === 'repository' || (event.payload?.ref_type === 'branch' && event.payload?.ref === event.payload?.master_branch))) eventType = 'repository_create';
       // Note: DeleteEvent with ref_type=repository is never emitted by GitHub Events API.
       // Repo deletions are detected via repo list comparison below.
@@ -309,7 +313,7 @@ export async function POST(request: NextRequest) {
       console.error('Failed to detect deleted repos:', e);
     }
 
-    // Persist state to Discord (survives Vercel cold starts)
+    // Persist state to Discord (survives cold starts)
     const newestEventId = events[0].id;
     await writePersistedState(
       botToken,
@@ -342,4 +346,25 @@ export async function POST(request: NextRequest) {
       message: error.message || 'Unknown server error during sync' 
     }, { status: 500 });
   }
+}
+
+// --- HTTP Handlers ---
+
+// GET: For external cron services (cron-job.org, UptimeRobot, etc.)
+// Protected by optional CRON_SECRET query param
+export async function GET(request: NextRequest) {
+  const cronSecret = process.env.CRON_SECRET;
+  if (cronSecret) {
+    const url = new URL(request.url);
+    const token = url.searchParams.get('token') || request.headers.get('authorization')?.replace('Bearer ', '');
+    if (token !== cronSecret) {
+      return NextResponse.json({ success: false, message: 'Unauthorized' }, { status: 401 });
+    }
+  }
+  return handleSync();
+}
+
+// POST: For Vercel Cron and manual calls
+export async function POST(request: NextRequest) {
+  return handleSync();
 }

@@ -408,6 +408,30 @@ export async function formatPolledEvent(
       break;
     }
 
+    case 'IssuesEvent': {
+      const issue = event.payload?.issue;
+      if (!issue) return null;
+      const action = event.payload?.action || 'opened';
+
+      let color = 15158332; // Red (opened)
+      if (action === 'closed') color = 3066993; // Green
+      if (action === 'reopened') color = 10181046; // Purple
+
+      description = `${action} issue #${issue.number} on **${repoName}**`;
+      embeds.push({
+        ...baseEmbed,
+        title: t('issue_title', lang, { number: issue.number.toString(), action: action.toUpperCase() }),
+        url: issue.html_url,
+        description: `**[${issue.title}](${issue.html_url})**\n\n${issue.body ? (issue.body.length > 200 ? issue.body.substring(0, 200) + '...' : issue.body) : t('issue_no_desc', lang)}`,
+        color,
+        fields: [
+          { name: 'Repository', value: `[${repoName}](${repoUrl})`, inline: true },
+          { name: 'Author', value: `[${actor}](${actorUrl})`, inline: true }
+        ]
+      });
+      break;
+    }
+
     // Note: 'DeleteEvent' with ref_type=repository is never emitted by GitHub Events API.
     // Repository deletions are detected via repo list comparison in sync-user/route.ts.
 

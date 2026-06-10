@@ -1,6 +1,6 @@
 # GitCord — GitHub to Discord Notification Gateway & Dashboard
 
-GitCord is a high-performance, serverless integration built with Next.js (App Router, TypeScript, and Vanilla CSS) that forwards GitHub events (stars, forks, issues, pull requests, push commits, and GitHub Actions) directly to dedicated Discord channels.
+GitCord is a high-performance, serverless integration built with Next.js (App Router, TypeScript, and Vanilla CSS) that forwards GitHub events (stars, forks, issues, pull requests, push commits, repository creation/deletion, and GitHub Actions) directly to dedicated Discord channels.
 
 It features a sleek developer dashboard to monitor system configurations, test routes using an interactive simulator, review real-time activity logs, and configure multilingual notifications.
 
@@ -13,6 +13,8 @@ It features a sleek developer dashboard to monitor system configurations, test r
 - **🔌 Automatic Console Mirroring**: Redirects all server console warnings, errors, and info logs to a dedicated Discord channel for real-time diagnostics.
 - **🌐 Multilingual Support (i18n)**: Supports notifications in **English** and **Spanish**. Use the `/language` command in Discord to toggle notifications for each server dynamically! Also features a `/ping` command responding with `🏓 **Pong!**`.
 - **🧪 Testing Simulator**: Select any event type (Star, Fork, Issue, PR, Action, Push) and send a mock payload with one click to test channel deliveries.
+- **🔄 Automatic Activity Polling**: Periodically syncs your GitHub activity (including private repos) and detects repository deletions via smart repo list comparison.
+- **📌 Persistent State**: Poller state is persisted via Discord pinned messages, surviving Vercel cold starts without external databases.
 
 ---
 
@@ -37,12 +39,26 @@ DISCORD_CHANNEL_LOGS=
 DISCORD_CHANNEL_REPO_CREATE=
 DISCORD_CHANNEL_REPO_DELETE=
 
-# GitHub Configuration (Optional: for polling your own activity on other repos)
-# If provided, the poller can check your public events.
+# GitHub Configuration
+# Your GitHub username to poll activity from
 GITHUB_USERNAME=
-# A GitHub Personal Access Token is recommended to avoid rate limits
+# A GitHub Personal Access Token (required for private repo visibility and to avoid rate limits)
 GITHUB_PAT=
+
+# Cron Security (Optional but recommended)
+# A secret token to protect the sync-user endpoint from unauthorized calls
+CRON_SECRET=
 ```
+
+### Generating a CRON_SECRET
+
+Run the following command to generate a secure random token:
+
+```bash
+openssl rand -hex 16
+```
+
+Add this value as `CRON_SECRET` in both your `.env` file and your Vercel environment variables.
 
 ---
 
@@ -82,8 +98,14 @@ Since GitHub cannot communicate directly with `localhost`, you must set up a pub
 3. Deploy the application.
 4. Set the Vercel deployment URL + `/api/webhook/github` (e.g., `https://my-gitcord.vercel.app/api/webhook/github`) as your webhook URL in your GitHub settings.
 
-### 2. Cron Jobs (Vercel Hobby plan)
-To comply with the Vercel Hobby plan limits (at most 2 cron jobs, max once per day), the polling script in `vercel.json` is preconfigured to run daily:
+### 2. Setting Up Automatic Polling
+
+The poller (`/api/sync-user`) periodically checks your GitHub activity for events that webhooks might miss (e.g., activity on repos without webhooks, repository deletions). It supports both `GET` and `POST` requests.
+
+#### Vercel Cron (Daily — Hobby Plan)
+
+The Vercel Hobby plan only allows cron jobs to run **once per day**. A daily cron is preconfigured in `vercel.json`:
+
 ```json
 {
   "crons": [
@@ -94,7 +116,37 @@ To comply with the Vercel Hobby plan limits (at most 2 cron jobs, max once per d
   ]
 }
 ```
-You can manually synchronize your public activity at any time by clicking **🔄 Sync User Activity** on the web dashboard.
+
+#### External Cron Service (Recommended for real-time sync)
+
+For more frequent polling (e.g., every 5 minutes), use a **free external cron service** to call the sync endpoint:
+
+1. Generate a `CRON_SECRET` (see [Configuration](#configuration)) and add it to your Vercel environment variables.
+
+2. Sign up for one of these free services:
+   - [cron-job.org](https://cron-job.org) — Free, every 1 minute
+   - [UptimeRobot](https://uptimerobot.com) — Free, every 5 minutes
+   - [Easycron](https://easycron.com) — Free tier available
+
+3. Create a new job with:
+   - **URL**: `https://your-app.vercel.app/api/sync-user?token=YOUR_CRON_SECRET`
+   - **Method**: `GET`
+   - **Interval**: Every 5 minutes (or your preferred frequency)
+
+4. Activate the job. The poller will now run automatically.
+
+> **Note:** If `CRON_SECRET` is not set, the endpoint is open (no authentication required). It is strongly recommended to set a secret in production.
+
+#### How the Poller Works
+
+- **Events**: Polls `GET /users/{username}/events` from the GitHub API to detect stars, forks, pushes, PRs, issues, and repository creation.
+- **Repo Deletions**: Since GitHub's Events API does not emit events when a repository is deleted, GitCord compares the current repo list against a cached snapshot on each sync. Any repos that disappear trigger a deletion notification.
+- **Private Repos**: Uses the authenticated `GET /user/repos` endpoint with your `GITHUB_PAT` to track private repositories.
+- **State Persistence**: The last processed event ID and repo list are stored as a **pinned message** in your `DISCORD_CHANNEL_LOGS` channel. This survives Vercel serverless cold starts without needing a database.
+- **Deduplication**: Events are tracked by ID. Re-running the sync will never send duplicate notifications.
+- **First Run**: On the very first execution, only events from the last 10 minutes are processed to avoid flooding Discord with historical activity.
+
+You can also manually synchronize at any time by clicking **🔄 Sync User Activity** on the web dashboard.
 
 ---
 

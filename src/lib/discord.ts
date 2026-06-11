@@ -102,7 +102,7 @@ export async function notifyDeploymentOnce() {
   if (localHasNotified) return;
 
   const botToken = process.env.DISCORD_TOKEN;
-  const channelId = process.env.DISCORD_CHANNEL_DEFAULT;
+  const channelId = process.env.DISCORD_CHANNEL_ACTIVE || process.env.DISCORD_CHANNEL_DEFAULT;
   
   if (!botToken || !channelId) {
     return;
